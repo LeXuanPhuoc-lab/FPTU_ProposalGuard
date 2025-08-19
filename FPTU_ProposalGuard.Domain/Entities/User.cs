@@ -59,6 +59,7 @@ public class User
     public ICollection<ProposalHistory> ProposalHistories { get; set; } = new List<ProposalHistory>();
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public ICollection<ReviewSession> ReviewSessions { get; set; } = new List<ReviewSession>();
 
     public SystemRole Role { get; set; } = null!;
 }
