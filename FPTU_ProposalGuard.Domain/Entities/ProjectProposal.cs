@@ -9,11 +9,11 @@ public class ProjectProposal : IAuditableEntity
 
     public int SemesterId { get; set; }
 
-    public string? VieTitle { get; set; } = null!;
+    public string? VieTitle { get; set; }
 
     public string EngTitle { get; set; } = null!;
 
-    public string? Abbreviation { get; set; } = null!;
+    public string? Abbreviation { get; set; }
 
     public string? SupervisorName { get; set; }
 
