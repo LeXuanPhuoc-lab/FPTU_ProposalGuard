@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using FPTU_ProposalGuard.Application.Dtos.Reviews;
 using FPTU_ProposalGuard.Application.Dtos.Users;
 
 namespace FPTU_ProposalGuard.Application.Dtos.Proposals;
@@ -24,4 +25,10 @@ public class ProposalHistoryDto
     [JsonIgnore]
     public ProjectProposalDto ProjectProposal { get; set; } = null!;
     public ICollection<ProposalSimilarityDto> SimilarProposals { get; set; } = new List<ProposalSimilarityDto>();
+    
+    [JsonIgnore]
+    public ICollection<ReviewSessionDto> ReviewSessions { get; set; } = new List<ReviewSessionDto>();
+
+    [JsonIgnore]
+    public ICollection<ReviewAnswerDto> ReviewAnswers { get; set; } = new List<ReviewAnswerDto>();
 }

@@ -1,4 +1,5 @@
 ﻿using FPTU_ProposalGuard.Application.Dtos.Notifications;
+using FPTU_ProposalGuard.Application.Dtos.Reviews;
 using FPTU_ProposalGuard.Application.Dtos.SystemRoles;
 
 namespace FPTU_ProposalGuard.Application.Dtos.Users;
@@ -20,7 +21,7 @@ public class UserDto
     public string? Phone { get; set; }
 
     public string? Avatar { get; set; }
-    
+
     public string? Address { get; set; }
 
     public string? Gender { get; set; }
@@ -49,14 +50,16 @@ public class UserDto
     public string? PhoneVerificationCode { get; set; }
 
     public DateTime? PhoneVerificationExpiry { get; set; }
-    
+
     public int RoleId { get; set; }
 
     public SystemRoleDto Role { get; set; } = null!;
-    
+
     public ICollection<NotificationDto> Notifications { get; set; } = new List<NotificationDto>();
+    public ICollection<ReviewSessionDto> ReviewSessions { get; set; } = new List<ReviewSessionDto>();
 
     #region Create dto when implement specific feature
+
     // public ICollection<ProjectProposal> ProjectProposalApprovers { get; set; } = new List<ProjectProposal>();
     //
     // public ICollection<ProjectProposal> ProjectProposalSubmitters { get; set; } = new List<ProjectProposal>();
@@ -64,5 +67,6 @@ public class UserDto
     // public ICollection<ProposalHistory> ProposalHistories { get; set; } = new List<ProposalHistory>();
     //
     // public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
     #endregion
 }

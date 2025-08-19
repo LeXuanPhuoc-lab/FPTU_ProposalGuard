@@ -52,5 +52,6 @@ public class ProposalHistoryConfiguration : IEntityTypeConfiguration<ProposalHis
             .HasForeignKey(s => s.HistoryId)
             .OnDelete(DeleteBehavior.Cascade)
             .HasConstraintName("FK_ProposalSimilarity_HistoryId");
+        
     }
 }

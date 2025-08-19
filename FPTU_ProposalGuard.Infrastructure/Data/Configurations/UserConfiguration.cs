@@ -81,5 +81,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasForeignKey(d => d.RoleId)
             .OnDelete(DeleteBehavior.ClientSetNull)
             .HasConstraintName("FK_User_RoleId");
+        builder.HasMany(u => u.ReviewSessions)
+            .WithOne(s => s.Reviewer)
+            .HasForeignKey(s => s.ReviewerId)
+            .OnDelete(DeleteBehavior.ClientSetNull)
+            .HasConstraintName("FK_ReviewSession_ReviewerId");
     }
 }

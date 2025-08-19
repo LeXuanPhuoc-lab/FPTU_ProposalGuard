@@ -24,4 +24,10 @@ public class ProposalHistory
     public ProjectProposal ProjectProposal { get; set; } = null!;
     [JsonIgnore]
     public ICollection<ProposalSimilarity> SimilarProposals { get; set; } = new List<ProposalSimilarity>();
+    
+    [JsonIgnore]
+    public ICollection<ReviewSession> ReviewSessions { get; set; } = new List<ReviewSession>();
+
+    [JsonIgnore]
+    public ICollection<ReviewAnswer> ReviewAnswers { get; set; } = new List<ReviewAnswer>();
 }
