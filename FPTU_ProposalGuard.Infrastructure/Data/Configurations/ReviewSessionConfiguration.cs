@@ -23,6 +23,7 @@ public class ReviewSessionConfiguration: IEntityTypeConfiguration<ReviewSession>
             .HasColumnName("review_status");
 
         builder.Property(s => s.ReviewDate)
+            .IsRequired(false)
             .HasColumnType("datetime")
             .HasColumnName("review_date");
 

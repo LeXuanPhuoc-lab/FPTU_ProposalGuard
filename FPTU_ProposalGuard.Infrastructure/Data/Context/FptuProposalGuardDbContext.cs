@@ -45,6 +45,9 @@ public class FptuProposalGuardDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     public DbSet<Semester> Semesters { get; set; }
+    
+    public DbSet<ReviewQuestion> ReviewQuestions { get; set; }
+    public DbSet<ReviewSession> ReviewSessions { get; set; }
 
     public DbSet<SystemRole> SystemRoles { get; set; }
 

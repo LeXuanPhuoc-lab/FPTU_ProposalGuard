@@ -9,7 +9,16 @@ builder.Services
     // Add HttpClient
     .AddHttpClient()
     // Add CORS
-    .AddCors("Cors")
+    .AddCors(options =>
+    {
+        options.AddPolicy("AllowAll", policy =>
+        {
+            policy
+                .AllowAnyOrigin() // Cho phép mọi domain
+                .AllowAnyMethod() // Cho phép mọi HTTP method (GET, POST, PUT, DELETE,...)
+                .AllowAnyHeader(); // Cho phép mọi header
+        });
+    })
     // Add system health checks
     .AddHealthChecks();
 
@@ -46,10 +55,7 @@ builder.Services
 var app = builder.Build();
 
 // Register database initializer
-app.Lifetime.ApplicationStarted.Register(() => Task.Run(async () =>
-{
-    await app.InitializeDatabaseAsync();
-}));
+app.Lifetime.ApplicationStarted.Register(() => Task.Run(async () => { await app.InitializeDatabaseAsync(); }));
 
 app.WithSwagger();
 app.UseHttpsRedirection();
@@ -61,10 +67,6 @@ app.UseAuthorization();
 app.UseMiddleware<ExceptionHandlingMiddleware>(); // Exception handling middleware
 
 app.MapControllers(); // Maps controller endpoints after middleware pipeline
-app.UseCors(x => x
-    .AllowAnyMethod()
-    .AllowAnyHeader()
-    .SetIsOriginAllowed(_ => true)
-    .AllowCredentials());
+app.UseCors("AllowAll");
+
 app.Run();
-    

@@ -72,7 +72,7 @@ public class ProposalController(
         return File(result.Stream, result.ContentType, result.FileName);
     }
 
-    // [Authorize]
+    [Authorize]
     [HttpGet(APIRoute.Proposal.GetAll, Name = nameof(GetAll))]
     public async Task<IActionResult> GetAll([FromQuery] ProposalSpecParams specParams)
     {
@@ -84,7 +84,21 @@ public class ProposalController(
         return Ok(result);
     }
 
-    // [Authorize]
+    [Authorize]
+    [HttpGet(APIRoute.Proposal.GetAllUploaded, Name = nameof(GetAllUploaded))]
+    public async Task<IActionResult> GetAllUploaded([FromQuery] ProposalSpecParams specParams)
+    {
+        var email = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value!;
+        var result = await projectProposalService.GetAllWithSpecAsync(new ProposalSpecification(
+            specParams: specParams,
+            pageIndex: specParams.PageIndex ?? 1,
+            pageSize: specParams.PageSize ?? _appSettings.PageSize,
+            email));
+
+        return Ok(result);
+    }
+
+    [Authorize]
     [HttpGet(APIRoute.Proposal.GetById, Name = nameof(GetById))]
     public async Task<IActionResult> GetById([FromRoute] int id)
     {
