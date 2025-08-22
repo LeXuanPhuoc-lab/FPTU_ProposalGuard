@@ -2,10 +2,13 @@
 using FPTU_ProposalGuard.Application.Dtos.Authentications;
 using FPTU_ProposalGuard.Application.Dtos.Notifications;
 using FPTU_ProposalGuard.Application.Dtos.Proposals;
+using FPTU_ProposalGuard.Application.Dtos.Reviews;
+using FPTU_ProposalGuard.Application.Dtos.Semesters;
 using FPTU_ProposalGuard.Application.Dtos.SystemRoles;
 using FPTU_ProposalGuard.Application.Dtos.Users;
 using FPTU_ProposalGuard.Application.Services;
 using FPTU_ProposalGuard.Application.Services.IExternalServices;
+using FPTU_ProposalGuard.Domain.Entities;
 using FPTU_ProposalGuard.Domain.Interfaces.Services;
 using FPTU_ProposalGuard.Domain.Interfaces.Services.Base;
 using Mapster;
@@ -32,13 +35,16 @@ public static class DependencyInjection
         services.AddScoped<IUserService<UserDto>, UserService>();
         services.AddScoped<ISystemRoleService<SystemRoleDto>, SystemRoleService>();
         services.AddScoped<IProposalService, ProposalService>();
+        services.AddScoped<IQuestionService, QuestionService>();
         services.AddScoped<IS3Service, S3Service>();
         services.AddScoped<IProjectProposalService<ProjectProposalDto>, ProjectProposalService>();
-        services.AddScoped<IExtractService,ExtractService>();
+        services.AddScoped<IExtractService, ExtractService>();
+        services.AddScoped<IReviewSessionService<ReviewSessionDto>, ReviewSessionService>();
         services.AddScoped<IProposalStudentService<ProposalStudentDto>, ProposalStudentService>();
+        services.AddScoped<ISemesterService<SemesterDto>, SemesterService>();
         services.AddScoped<IProposalSupervisorService<ProposalSupervisorDto>, ProposalSupervisorService>();
         services.AddScoped<IProposalHistoryService<ProposalHistoryDto>, ProposalHistoryService>();
-        
+
         return services
             .ConfigureMapster() // Add mapster
             .ConfigureCloudinary() // Add cloudinary
@@ -49,10 +55,10 @@ public static class DependencyInjection
     {
         // Add License for Excel handler
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-        
+
         return services;
     }
-    
+
     private static IServiceCollection ConfigureMapster(this IServiceCollection services)
     {
         TypeAdapterConfig.GlobalSettings.Default

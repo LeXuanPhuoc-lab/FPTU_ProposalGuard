@@ -1,5 +1,6 @@
 using FPTU_ProposalGuard.Domain.Entities;
 using FPTU_ProposalGuard.Domain.Interfaces.Services.Base;
+using FPTU_ProposalGuard.Domain.Specifications.Interfaces;
 
 namespace FPTU_ProposalGuard.Domain.Interfaces.Services;
 
