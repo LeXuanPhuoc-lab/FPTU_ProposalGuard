@@ -12,7 +12,7 @@ public class ReviewAnswer
     public int QuestionId { get; set; }
     public int HistoryId { get; set; }
 
-    public string Answer { get; set; } = null!;
+    public bool Answer { get; set; }
 
     [JsonIgnore]
     public ReviewSession ReviewSession { get; set; } = null!;

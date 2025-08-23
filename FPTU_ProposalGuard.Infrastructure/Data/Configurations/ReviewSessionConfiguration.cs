@@ -21,6 +21,9 @@ public class ReviewSessionConfiguration: IEntityTypeConfiguration<ReviewSession>
         builder.Property(s => s.ReviewStatus)
             .HasMaxLength(50)
             .HasColumnName("review_status");
+        builder.Property(e => e.Comment)
+            .HasMaxLength(255)
+            .HasColumnName("comment");
 
         builder.Property(s => s.ReviewDate)
             .HasColumnType("datetime")

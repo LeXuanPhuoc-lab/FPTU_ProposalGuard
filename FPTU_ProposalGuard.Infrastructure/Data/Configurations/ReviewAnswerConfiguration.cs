@@ -26,9 +26,8 @@ public class ReviewAnswerConfiguration : IEntityTypeConfiguration<ReviewAnswer>
             .HasColumnName("history_id");
 
         builder.Property(a => a.Answer)
-            .IsRequired()
             .HasColumnName("answer");
-        
+
         builder.HasOne(a => a.ReviewSession)
             .WithMany(s => s.Answers)
             .HasForeignKey(a => a.ReviewSessionId)
