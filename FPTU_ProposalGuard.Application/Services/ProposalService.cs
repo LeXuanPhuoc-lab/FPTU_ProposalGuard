@@ -17,7 +17,6 @@ using FPTU_ProposalGuard.Domain.Entities;
 using FPTU_ProposalGuard.Domain.Interfaces;
 using FPTU_ProposalGuard.Domain.Specifications;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Azure;
 using OpenSearch.Net;
 using Serilog;
 using ProjectProposalDto = FPTU_ProposalGuard.Application.Dtos.Proposals.ProjectProposalDto;
