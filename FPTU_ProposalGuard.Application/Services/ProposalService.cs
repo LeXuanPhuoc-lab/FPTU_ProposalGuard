@@ -37,7 +37,6 @@ public class ProposalService : IProposalService
     private readonly OpenSearchLowLevelClient _openSearchClient;
     private readonly IS3Service _s3;
     private readonly ISemesterService<SemesterDto> _semesterService;
-    private readonly IReviewQuestionService<ReviewQuestionDto> _reviewQuestionService;
     private readonly IReviewSessionService<ReviewSessionDto> _reviewSessionService;
 
     public ProposalService(
@@ -51,7 +50,6 @@ public class ProposalService : IProposalService
         IProposalHistoryService<ProposalHistoryDto> historyService,
         IS3Service s3,
         ISemesterService<SemesterDto> semesterService,
-        IReviewQuestionService<ReviewQuestionDto> reviewQuestionService,
         IReviewSessionService<ReviewSessionDto> reviewSessionService,
         IUserService<UserDto> userService)
     {
@@ -66,7 +64,6 @@ public class ProposalService : IProposalService
         _userService = userService;
         _s3 = s3;
         _semesterService = semesterService;
-        _reviewQuestionService = reviewQuestionService;
         _reviewSessionService = reviewSessionService;
         // Khởi tạo OpenSearch client
         var node = new Uri(_appSettings.OpenSearchUrl);
