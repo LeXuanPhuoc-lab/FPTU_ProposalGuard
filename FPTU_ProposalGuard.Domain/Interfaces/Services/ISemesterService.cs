@@ -6,5 +6,5 @@ namespace FPTU_ProposalGuard.Domain.Interfaces.Services;
 public interface ISemesterService<TDto> : IGenericService<Semester, TDto, int>
     where TDto : class
 {
-    Task<IServiceResult> GetCurrentSemesterCode();
+    Task<IServiceResult> GetCurrentSemester();
 }

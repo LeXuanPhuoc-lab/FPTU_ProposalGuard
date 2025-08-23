@@ -26,7 +26,6 @@ public class ProposalHistoryDto
     public ProjectProposalDto ProjectProposal { get; set; } = null!;
     public ICollection<ProposalSimilarityDto> SimilarProposals { get; set; } = new List<ProposalSimilarityDto>();
     
-    [JsonIgnore]
     public ICollection<ReviewSessionDto> ReviewSessions { get; set; } = new List<ReviewSessionDto>();
 
     [JsonIgnore]

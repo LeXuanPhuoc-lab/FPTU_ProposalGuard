@@ -3,6 +3,8 @@ using FPTU_ProposalGuard.Application.Common;
 using FPTU_ProposalGuard.Application.Dtos;
 using FPTU_ProposalGuard.Application.Dtos.Notifications;
 using FPTU_ProposalGuard.Application.Dtos.Proposals;
+using FPTU_ProposalGuard.Application.Dtos.Reviews;
+using FPTU_ProposalGuard.Application.Dtos.Semesters;
 using FPTU_ProposalGuard.Application.Exceptions;
 using FPTU_ProposalGuard.Application.Services.IExternalServices;
 using FPTU_ProposalGuard.Domain.Common.Enums;
@@ -18,6 +20,7 @@ using Mapster;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using ClosedXML.Excel;
 
 namespace FPTU_ProposalGuard.Application.Services;
 
@@ -27,6 +30,7 @@ public class ProjectProposalService(
     IMapper mapper,
     IGenericRepository<ProjectProposal, int> projectProposalRepository,
     IS3Service s3Service,
+    ISemesterService<SemesterDto> semesterService,
     ILogger logger)
     : GenericService<ProjectProposal, ProjectProposalDto, int>(msgService, unitOfWork, mapper, logger),
         IProjectProposalService<ProjectProposalDto>
@@ -229,6 +233,133 @@ public class ProjectProposalService(
         }
 
         return serviceResult;
+    }
+
+    public async Task<IServiceResult> ExportSemesterReport(int? semesterId)
+    {
+        var selectedSemesterId = semesterId;
+        if (semesterId == null)
+        {
+            var semesterResponse = await semesterService.GetCurrentSemester();
+            if (semesterResponse.ResultCode != ResultCodeConst.SYS_Success0002)
+                return semesterResponse;
+            selectedSemesterId = (semesterResponse.Data as Semester)!.SemesterId;
+        }
+
+        var spec = new BaseSpecification<ProjectProposal>(p => p.SemesterId.Equals(selectedSemesterId));
+        spec.ApplyInclude(p => p
+            .Include(p => p.ProposalSupervisors)
+            .Include(pp => pp.ProposalHistories
+                .OrderBy(ph => ph.Version))
+            .ThenInclude(ph => ph.ReviewSessions)
+            .ThenInclude(rs => rs.Reviewer));
+        var proposalEntities = (await unitOfWork.Repository<ProjectProposal, int>().GetAllWithSpecAsync(spec)).ToList();
+        var proposalsNotEnoughReviewers = proposalEntities.Where(p =>
+            p.ProposalHistories.LastOrDefault()!.ReviewSessions.Count < 2).ToList().Adapt<List<ProjectProposalDto>>();
+        var proposalsNotReviewedDone = proposalEntities.Where(p =>
+            p.ProposalHistories.LastOrDefault()!.ReviewSessions.Any(rs =>
+                rs.ReviewStatus.Equals(ReviewStatus.Pending))).ToList().Adapt<List<ProjectProposalDto>>();
+
+        var mappedProposalsNotEnoughReviewers = proposalsNotEnoughReviewers.Select(p => new
+        {
+            p.ProjectProposalId,
+            p.VieTitle,
+            p.EngTitle,
+            p.Abbreviation,
+            p.Submitter,
+            Supervisors = p.ProposalSupervisors?.Select(ps => ps.Email) ?? [],
+            Reviewers = p.ProposalHistories.LastOrDefault()!.ReviewSessions
+                .Select(rs => new
+                {
+                    rs.Reviewer,
+                    rs.ReviewStatus
+                }).ToList(),
+        });
+
+        var mappedProposalsNotReviewedDone = proposalsNotReviewedDone.Select(p => new
+        {
+            p.ProjectProposalId,
+            p.VieTitle,
+            p.EngTitle,
+            p.Abbreviation,
+            p.Submitter,
+            Supervisors = p.ProposalSupervisors?.Select(ps => ps.Email) ?? [],
+            Reviewers = p.ProposalHistories.LastOrDefault()!.ReviewSessions
+                .Select(rs => new
+                {
+                    rs.Reviewer,
+                    rs.ReviewStatus
+                }).ToList(),
+        });
+
+        if (proposalsNotEnoughReviewers.Count != 0 || proposalsNotReviewedDone.Count != 0)
+        {
+            return new ServiceResult(ResultCodeConst.Proposal_Warning0005,
+                await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0005),
+                new
+                {
+                    proposalsNotEnoughReviewers = mappedProposalsNotEnoughReviewers,
+                    proposalsNotReviewedDone = mappedProposalsNotReviewedDone
+                });
+        }
+
+
+        var proposalAggregateData = proposalEntities
+            .SelectMany(p => p.ProposalHistories.Select(h => new
+            {
+                p.Abbreviation,
+                h.Version,
+                Supervisors = string.Join(",", p.ProposalSupervisors?.Select(ps => ps.Email) ?? []),
+                Reviews = h.ReviewSessions.Select(rs => rs.ReviewStatus.ToString()).ToList(),
+                h.Comment
+            }))
+            .ToList();
+
+        using (var workbook = new XLWorkbook())
+        {
+            var worksheet = workbook.Worksheets.Add("Proposals Report");
+
+            // Header
+            worksheet.Cell(1, 1).Value = "Proposal code";
+            worksheet.Cell(1, 2).Value = "Supervisors";
+
+            // Xác định số reviewer lớn nhất để tạo header động
+            int maxReviewers = proposalAggregateData.Any() ? proposalAggregateData.Max(p => p.Reviews.Count) : 0;
+            for (int i = 0; i < maxReviewers; i++)
+            {
+                worksheet.Cell(1, i + 3).Value = $"Reviewer {i + 1}";
+            }
+
+            worksheet.Cell(1, maxReviewers + 3).Value = "Comment";
+            
+            worksheet.Row(1).Style.Font.Bold = true;
+
+            // Ghi dữ liệu
+            int row = 2;
+            foreach (var proposal in proposalAggregateData)
+            {
+                worksheet.Cell(row, 1).Value = proposal.Abbreviation + "_" + proposal.Version;
+                worksheet.Cell(row, 2).Value = proposal.Supervisors;
+                for (int i = 0; i < proposal.Reviews.Count; i++)
+                {
+                    worksheet.Cell(row, i + 3).Value = proposal.Reviews[i];
+                }
+                worksheet.Cell(row, maxReviewers + 3).Value = proposal.Comment;
+                row++;
+            }
+            
+
+            // Auto-fit column width
+            worksheet.Columns().AdjustToContents();
+
+            using (var stream = new MemoryStream())
+            {
+                workbook.SaveAs(stream);
+                return new ServiceResult(ResultCodeConst.SYS_Success0002,
+                    await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0002),
+                    stream.ToArray());
+            }
+        }
     }
 
     public override async Task<IServiceResult> GetAllWithSpecAsync(ISpecification<ProjectProposal> specification,

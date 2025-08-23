@@ -112,6 +112,7 @@ public class APIRoute
         public const string GetFile = Base + "/proposals/files/{historyId}";
         public const string GetAll = Base + "/proposals";
         public const string GetAllUploaded = Base + "/proposals/uploaded";
+        public const string ExportSemesterReport = Base + "/proposals/export-semester-report";
         //[POST]
         public const string AddProposalsWithFiles = Base + "/proposals/files";
         public const string AddReviewers = Base +"/proposals/reviewers";
@@ -137,7 +138,7 @@ public class APIRoute
     } public static class Semester
     {
         // [GET]
-        public const string GetCurrentSemesterCode = Base + "/semesters/current-code";
+        public const string GetCurrentSemester = Base + "/semesters/current";
         // [POST]
      
         // [PATCH]
