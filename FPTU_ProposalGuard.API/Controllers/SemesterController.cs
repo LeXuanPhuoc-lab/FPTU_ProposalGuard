@@ -12,10 +12,10 @@ public class SemesterController(
 ) : ControllerBase
 {
     [Authorize]
-    [HttpGet(APIRoute.Semester.GetCurrentSemesterCode, Name = nameof(GetCurrentSemesterCode))]
-    public async Task<IActionResult> GetCurrentSemesterCode()
+    [HttpGet(APIRoute.Semester.GetCurrentSemester, Name = nameof(GetCurrentSemester))]
+    public async Task<IActionResult> GetCurrentSemester()
     {
-        var result = await questionService.GetCurrentSemesterCode();
+        var result = await questionService.GetCurrentSemester();
         return Ok(result);
     }
 }

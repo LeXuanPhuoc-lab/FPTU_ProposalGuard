@@ -292,6 +292,10 @@ public class ResultCodeConst
     /// [WARNING] Only Pending can be changed to Approved or Rejected	
     /// </summary>
     public static string Proposal_Warning0004 = "Proposal.Warning0004";
+    /// <summary>
+    /// [WARNING] Some proposals do not have enough reviewers assigned or have not been reviewed yet.
+    /// </summary>
+    public static string Proposal_Warning0005 = "Proposal.Warning0005";
     #endregion
 
     #region ProposalStudent

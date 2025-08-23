@@ -1,6 +1,8 @@
 ﻿using FPTU_ProposalGuard.Application.Dtos.Notifications;
 using FPTU_ProposalGuard.Application.Dtos.Reviews;
 using FPTU_ProposalGuard.Application.Dtos.SystemRoles;
+using System.Text.Json.Serialization;
+
 
 namespace FPTU_ProposalGuard.Application.Dtos.Users;
 
@@ -56,7 +58,8 @@ public class UserDto
     public SystemRoleDto Role { get; set; } = null!;
 
     public ICollection<NotificationDto> Notifications { get; set; } = new List<NotificationDto>();
-    public ICollection<ReviewSessionDto> ReviewSessions { get; set; } = new List<ReviewSessionDto>();
+
+    [JsonIgnore] public ICollection<ReviewSessionDto> ReviewSessions { get; set; } = new List<ReviewSessionDto>();
 
     #region Create dto when implement specific feature
 
