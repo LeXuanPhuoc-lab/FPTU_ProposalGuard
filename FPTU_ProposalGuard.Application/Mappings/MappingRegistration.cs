@@ -3,6 +3,7 @@ using FPTU_ProposalGuard.Application.Dtos;
 using FPTU_ProposalGuard.Application.Dtos.Notifications;
 using FPTU_ProposalGuard.Application.Dtos.Proposals;
 using FPTU_ProposalGuard.Application.Dtos.Reviews;
+using FPTU_ProposalGuard.Application.Dtos.Semesters;
 using FPTU_ProposalGuard.Application.Dtos.SystemRoles;
 using FPTU_ProposalGuard.Application.Dtos.Users;
 using FPTU_ProposalGuard.Domain;
@@ -28,6 +29,8 @@ public class MappingRegistration : IRegister
         config.NewConfig<ReviewAnswer, ReviewAnswerDto>();
         config.NewConfig<ReviewQuestion, ReviewQuestionDto>();
         config.NewConfig<ReviewSession, ReviewSessionDto>();
+        config.NewConfig<Semester, SemesterDto>();
+        
         
         config.NewConfig<ProjectProposal, ProjectProposalDto>()
             .Map(dest => dest.FunctionalRequirements,

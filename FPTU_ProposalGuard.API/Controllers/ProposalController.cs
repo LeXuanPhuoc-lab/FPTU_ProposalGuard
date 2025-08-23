@@ -4,6 +4,7 @@ using FPTU_ProposalGuard.API.Payloads;
 using FPTU_ProposalGuard.API.Payloads.Requests.Proposals;
 using FPTU_ProposalGuard.Application.Configurations;
 using FPTU_ProposalGuard.Application.Dtos.Proposals;
+using FPTU_ProposalGuard.Application.Dtos.Reviews;
 using FPTU_ProposalGuard.Domain.Common.Enums;
 using FPTU_ProposalGuard.Domain.Interfaces.Services;
 using FPTU_ProposalGuard.Domain.Specifications;
@@ -89,5 +90,20 @@ public class ProposalController(
     public async Task<IActionResult> GetById([FromRoute] int id)
     {
         return Ok(await projectProposalService.GetByIdAsync(id));
+    }
+
+    [HttpPost(APIRoute.Proposal.AddReviewers, Name = nameof(AddReviewers))]
+    public async Task<IActionResult> AddReviewers([FromBody] AddReviewersRequest req)
+    {
+        return Ok(await proposalService.AddReviewers(req.Proposals.ToDictionary(p => p.ProposalId,
+            p => p.ReviewerEmails)));
+    }
+
+    [HttpPost(APIRoute.Proposal.SubmitReview, Name = nameof(SubmitReview))]
+    public async Task<IActionResult> SubmitReview([FromRoute] int id, [FromBody] SubmitReviewRequest req)
+    {
+        var email = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value!;
+        return Ok(await proposalService.SubmitReview<ReviewSessionDto>(id
+            , req.ToDto() ,email));
     }
 }

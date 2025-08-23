@@ -113,8 +113,10 @@ public class APIRoute
         public const string GetAll = Base + "/proposals";
         //[POST]
         public const string AddProposalsWithFiles = Base + "/proposals/files";
+        public const string AddReviewers = Base +"/proposals/reviewers";
         public const string AddProposals = Base + "/proposals";
         public const string CheckDuplicatedProposal = Base + "/proposals/check-duplicate";
+        public const string SubmitReview = Base + "/propsoals/{id}/submit-review";
         //[PUT]
         public const string UpdateStatus = Base + "/proposals/{proposalId}/status";
         public const string ReUploadProposal = Base + "/proposals/re-upload/{proposalId}";

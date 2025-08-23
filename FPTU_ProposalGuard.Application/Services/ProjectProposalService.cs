@@ -68,13 +68,12 @@ public class ProjectProposalService(
 
         // Apply include
         baseSpec.ApplyInclude(q =>
-                q.Include(pp => pp.ProposalHistories.OrderByDescending(h => h.Version)
-                        .Take(1))
+                q.Include(pp => pp.ProposalHistories)
                     .ThenInclude(h => h.SimilarProposals)
                     .ThenInclude(s => s.MatchedSegments)
                     .Include(pp => pp.ProposalSupervisors!)
-                    .Include(pp => pp.ProposalHistories.OrderByDescending(h => h.Version)
-                        .Take(1)).ThenInclude(h => h.SimilarProposals).ThenInclude(s => s.ExistingProposal)
+                    .Include(pp => pp.ProposalHistories).ThenInclude(h => h.SimilarProposals)
+                    .ThenInclude(s => s.ExistingProposal)
                     .Include(pp => pp.ProposalStudents!))
             ;
 
@@ -188,10 +187,10 @@ public class ProjectProposalService(
                 ? ProjectProposalStatus.Approved
                 : ProjectProposalStatus.Rejected;
 
-            var latestHistory = existingEntity.ProposalHistories.MaxBy(h => h.Version);
-            latestHistory!.Status = isApproved
-                ? ProjectProposalStatus.Approved.ToString()
-                : ProjectProposalStatus.Rejected.ToString();
+            // var latestHistory = existingEntity.ProposalHistories.MaxBy(h => h.Version);
+            // latestHistory!.Status = isApproved
+            //     ? ProjectProposalStatus.Approved.ToString()
+            //     : ProjectProposalStatus.Rejected.ToString();
 
             await _unitOfWork.Repository<ProjectProposal, int>()
                 .UpdateAsync(existingEntity);

@@ -7,6 +7,7 @@ using FPTU_ProposalGuard.API.Payloads.Requests.Users;
 using FPTU_ProposalGuard.Application.Dtos;
 using FPTU_ProposalGuard.Application.Dtos.Notifications;
 using FPTU_ProposalGuard.Application.Dtos.Proposals;
+using FPTU_ProposalGuard.Application.Dtos.Reviews;
 using FPTU_ProposalGuard.Application.Dtos.Users;
 using FPTU_ProposalGuard.Domain.Common.Enums;
 
@@ -176,6 +177,20 @@ public static class PayloadExtensions
         }
 
         return (file, history);
+    }
+
+    public static ReviewSessionDto ToDto(this SubmitReviewRequest req)
+    {
+        return new ReviewSessionDto
+        {
+            Answers = req.SingleAnswers.Select(a => new ReviewAnswerDto
+            {
+                QuestionId = a.QuestionId,
+                Answer = a.Answer
+            }).ToList(),
+            Comment = req.Comment,
+            ReviewStatus = Enum.Parse<ReviewStatus>(req.ReviewStatus)
+        };
     }
 
     #endregion

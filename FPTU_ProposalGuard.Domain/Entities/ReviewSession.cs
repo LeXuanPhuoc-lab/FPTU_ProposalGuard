@@ -11,6 +11,7 @@ public class ReviewSession
     public int HistoryId { get; set; }
 
     public DateTime ReviewDate { get; set; }
+    public string? Comment { get; set; }
     
     public ReviewStatus ReviewStatus { get; set; }
 
