@@ -15,8 +15,7 @@ public class ReviewSessionDto
     public DateTime ReviewDate { get; set; }
     
     public ReviewStatus ReviewStatus { get; set; }
-
-    [JsonIgnore]
+    
     public UserDto Reviewer { get; set; } = null!;
 
     [JsonIgnore]

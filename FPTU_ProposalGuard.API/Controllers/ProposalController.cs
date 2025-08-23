@@ -104,4 +104,14 @@ public class ProposalController(
     {
         return Ok(await projectProposalService.GetByIdAsync(id));
     }
+
+    // [Authorize]
+    [HttpGet(APIRoute.Proposal.ExportSemesterReport, Name = nameof(ExportSemesterReport))]
+    public async Task<IActionResult> ExportSemesterReport([FromQuery] int? semesterId)
+    {
+        var exportResult = await projectProposalService.ExportSemesterReport(semesterId);
+        return exportResult.Data is byte[] fileStream
+            ? File(fileStream, @"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Proposals Report.xlsx")
+            : Ok(exportResult);
+    }
 }
