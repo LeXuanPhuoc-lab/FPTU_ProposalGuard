@@ -4,16 +4,19 @@ using FPTU_ProposalGuard.Infrastructure.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace FPTU_ProposalGuard.Infrastructure.Data.Migrations
+namespace FPTU_ProposalGuard.Infrastructure.Migrations
 {
     [DbContext(typeof(FptuProposalGuardDbContext))]
-    partial class FptuProposalGuardDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250822112603_UpdateReviewDateNullabble")]
+    partial class UpdateReviewDateNullabble
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -261,12 +264,6 @@ namespace FPTU_ProposalGuard.Infrastructure.Data.Migrations
                     b.Property<int>("ProjectProposalId")
                         .HasColumnType("int")
                         .HasColumnName("project_proposal_id");
-
-                    b.Property<string>("ProposalCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasColumnName("proposal_code");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -547,11 +544,6 @@ namespace FPTU_ProposalGuard.Infrastructure.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SessionId"));
 
-                    b.Property<string>("Comment")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
-                        .HasColumnName("comment");
-
                     b.Property<int>("HistoryId")
                         .HasColumnType("int")
                         .HasColumnName("history_id");
@@ -814,8 +806,9 @@ namespace FPTU_ProposalGuard.Infrastructure.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AnswerId"));
 
-                    b.Property<bool>("Answer")
-                        .HasColumnType("bit")
+                    b.Property<string>("Answer")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
                         .HasColumnName("answer");
 
                     b.Property<int>("HistoryId")

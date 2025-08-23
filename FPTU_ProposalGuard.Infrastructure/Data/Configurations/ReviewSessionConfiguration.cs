@@ -26,6 +26,7 @@ public class ReviewSessionConfiguration: IEntityTypeConfiguration<ReviewSession>
             .HasColumnName("comment");
 
         builder.Property(s => s.ReviewDate)
+            .IsRequired(false)
             .HasColumnType("datetime")
             .HasColumnName("review_date");
 

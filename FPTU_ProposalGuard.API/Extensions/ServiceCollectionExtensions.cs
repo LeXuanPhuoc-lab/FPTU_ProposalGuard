@@ -159,7 +159,8 @@ namespace FPTU_ProposalGuard.API.Extensions
             services.AddCors(p => p.AddPolicy(policyName, policy =>
             {
                 // allow all with any header, method
-                policy.WithOrigins("*")
+                policy
+                    .AllowAnyOrigin()
                     .AllowAnyHeader()
                     .AllowAnyMethod();
             }));
