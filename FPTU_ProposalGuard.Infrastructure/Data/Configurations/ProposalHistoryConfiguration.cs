@@ -21,6 +21,9 @@ public class ProposalHistoryConfiguration : IEntityTypeConfiguration<ProposalHis
             .HasColumnName("status");
 
         builder.Property(e => e.Version).HasColumnName("version");
+        builder.Property(e => e.ProposalCode)
+            .HasMaxLength(50)
+            .HasColumnName("proposal_code");
 
         builder.Property(e => e.Url)
             .HasMaxLength(255)

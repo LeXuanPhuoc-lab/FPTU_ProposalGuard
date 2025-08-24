@@ -21,6 +21,7 @@ using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using ClosedXML.Excel;
+using FPTU_ProposalGuard.Domain;
 
 namespace FPTU_ProposalGuard.Application.Services;
 
@@ -72,13 +73,12 @@ public class ProjectProposalService(
 
         // Apply include
         baseSpec.ApplyInclude(q =>
-                q.Include(pp => pp.ProposalHistories.OrderByDescending(h => h.Version)
-                        .Take(1))
+                q.Include(pp => pp.ProposalHistories)
                     .ThenInclude(h => h.SimilarProposals)
                     .ThenInclude(s => s.MatchedSegments)
                     .Include(pp => pp.ProposalSupervisors!)
-                    .Include(pp => pp.ProposalHistories.OrderByDescending(h => h.Version)
-                        .Take(1)).ThenInclude(h => h.SimilarProposals).ThenInclude(s => s.ExistingProposal)
+                    .Include(pp => pp.ProposalHistories).ThenInclude(h => h.SimilarProposals)
+                    .ThenInclude(s => s.ExistingProposal)
                     .Include(pp => pp.ProposalStudents!))
             ;
 
@@ -192,10 +192,10 @@ public class ProjectProposalService(
                 ? ProjectProposalStatus.Approved
                 : ProjectProposalStatus.Rejected;
 
-            var latestHistory = existingEntity.ProposalHistories.MaxBy(h => h.Version);
-            latestHistory!.Status = isApproved
-                ? ProjectProposalStatus.Approved.ToString()
-                : ProjectProposalStatus.Rejected.ToString();
+            // var latestHistory = existingEntity.ProposalHistories.MaxBy(h => h.Version);
+            // latestHistory!.Status = isApproved
+            //     ? ProjectProposalStatus.Approved.ToString()
+            //     : ProjectProposalStatus.Rejected.ToString();
 
             await _unitOfWork.Repository<ProjectProposal, int>()
                 .UpdateAsync(existingEntity);
@@ -230,6 +230,75 @@ public class ProjectProposalService(
         catch (Exception ex)
         {
             _logger.Error(ex.Message);
+            throw;
+        }
+
+        return serviceResult;
+    }
+
+    public async Task<IServiceResult> UpdateReviewedProposal(int id, ProjectProposalDto dto)
+    {
+        // Initiate service result
+        var serviceResult = new ServiceResult();
+        try
+        {
+            var baseSpec = new BaseSpecification<ProjectProposal>(pp => pp.ProjectProposalId == id);
+            // Apply include
+            baseSpec.ApplyInclude(q => q.Include(pp => pp.ProposalHistories)
+                .ThenInclude(h => h.ReviewSessions)
+                .ThenInclude(s => s.Answers));
+            var existingEntity = await _unitOfWork.Repository<ProjectProposal, int>().GetWithSpecAsync(baseSpec);
+            if (existingEntity == null)
+            {
+                var errMsg = await _msgService.GetMessageAsync(ResultCodeConst.SYS_Warning0004);
+                return new ServiceResult(ResultCodeConst.SYS_Warning0004, errMsg);
+            }
+
+            // Map properties from dto to existingEntity
+
+            var existingHistory = existingEntity.ProposalHistories
+                .MaxBy(h => h.Version);
+            var updatedHistory = dto.ProposalHistories.MaxBy(h => h.Version);
+            if (existingHistory != null)
+            {
+                existingHistory.Comment = updatedHistory!.Comment;
+                existingHistory.ReviewSessions = updatedHistory!.ReviewSessions
+                    .Select(rs => _mapper.Map<ReviewSession>(rs)).ToList();
+            }
+
+            await _unitOfWork.Repository<ProjectProposal, int>()
+                .UpdateAsync(existingEntity);
+
+            // Check if there are any differences between the original and the updated entity
+            if (!_unitOfWork.Repository<ProjectProposal, int>().HasChanges(existingEntity))
+            {
+                serviceResult.ResultCode = ResultCodeConst.SYS_Success0003;
+                serviceResult.Message = await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0003);
+                serviceResult.Data = true;
+                return serviceResult;
+            }
+
+            // Save changes to DB
+            var rowsAffected = await _unitOfWork.SaveChangesAsync();
+            if (rowsAffected == 0)
+            {
+                serviceResult.ResultCode = ResultCodeConst.SYS_Fail0003;
+                serviceResult.Message = await _msgService.GetMessageAsync(ResultCodeConst.SYS_Fail0003);
+                serviceResult.Data = false;
+            }
+
+            // Mark as update success
+            serviceResult.ResultCode = ResultCodeConst.SYS_Success0003;
+            serviceResult.Message = await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0003);
+            serviceResult.Data = true;
+        }
+        catch (UnprocessableEntityException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
             throw;
         }
 
@@ -332,7 +401,7 @@ public class ProjectProposalService(
             }
 
             worksheet.Cell(1, maxReviewers + 3).Value = "Comment";
-            
+
             worksheet.Row(1).Style.Font.Bold = true;
 
             // Ghi dữ liệu
@@ -345,10 +414,11 @@ public class ProjectProposalService(
                 {
                     worksheet.Cell(row, i + 3).Value = proposal.Reviews[i];
                 }
+
                 worksheet.Cell(row, maxReviewers + 3).Value = proposal.Comment;
                 row++;
             }
-            
+
 
             // Auto-fit column width
             worksheet.Columns().AdjustToContents();

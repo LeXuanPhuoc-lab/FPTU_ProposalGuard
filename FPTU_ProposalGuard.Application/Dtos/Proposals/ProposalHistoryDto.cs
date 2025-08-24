@@ -11,8 +11,8 @@ public class ProposalHistoryDto
     public int ProjectProposalId { get; set; }
 
     public string Status { get; set; } = null!;
-
     public int Version { get; set; }
+    public string ProposalCode { get; set; } = null!;
     public string Url { get; set; } = null!;
     public Guid ProcessById { get; set; }
 

@@ -277,6 +277,10 @@ public class ResultCodeConst
     /// </summary>
     public static string Proposal_Success0002 = "Proposal.Success0002";
     /// <summary>
+    /// [SUCCESS] Add reviewer successfully
+    /// </summary>
+    public static string Proposal_Success0003 = "Proposal.Success0003";
+    /// <summary>
     /// [WARNING] Something went wrong while processing the file
     /// </summary>
     public static string Proposal_Warning0001 = "Proposal.Warning0001";
@@ -289,7 +293,7 @@ public class ResultCodeConst
     /// </summary>
     public static string Proposal_Warning0003 = "Proposal.Warning0003";
     /// <summary>
-    /// [WARNING] Only Pending can be changed to Approved or Rejected	
+    /// [WARNING] Only Revised Proposal can be reuploaded
     /// </summary>
     public static string Proposal_Warning0004 = "Proposal.Warning0004";
     /// <summary>
@@ -303,6 +307,18 @@ public class ResultCodeConst
     /// [SUCCESS] Create students successfully
     /// </summary>
     public static string ProposalStudent_Success0001 = "ProposalStudent.Success0001";
+    
+    #endregion
+
+    #region Review
+    /// <summary>
+    /// [SUCCESS] Submit Review successfully
+    /// </summary>
+    public static string Review_Success0001 = "Review.Success0001";
+    /// <summary>
+    /// [Warning] This user does not have permission to review this proposal 
+    /// </summary>
+    public static string Review_Warning0001 = "Review.Warning0001";
     
     #endregion
 }

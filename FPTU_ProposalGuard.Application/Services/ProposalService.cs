@@ -8,10 +8,15 @@ using Microsoft.Extensions.Options;
 using System.Text.Json;
 using Amazon.S3.Model;
 using FPTU_ProposalGuard.Application.Dtos.Proposals;
+using FPTU_ProposalGuard.Application.Dtos.Reviews;
+using FPTU_ProposalGuard.Application.Dtos.Semesters;
 using FPTU_ProposalGuard.Application.Dtos.Users;
 using FPTU_ProposalGuard.Application.Services.IExternalServices;
 using FPTU_ProposalGuard.Domain.Common.Enums;
 using FPTU_ProposalGuard.Domain.Entities;
+using FPTU_ProposalGuard.Domain.Interfaces;
+using FPTU_ProposalGuard.Domain.Specifications;
+using Microsoft.EntityFrameworkCore;
 using OpenSearch.Net;
 using Serilog;
 using ProjectProposalDto = FPTU_ProposalGuard.Application.Dtos.Proposals.ProjectProposalDto;
@@ -31,6 +36,8 @@ public class ProposalService : IProposalService
     private readonly IUserService<UserDto> _userService;
     private readonly OpenSearchLowLevelClient _openSearchClient;
     private readonly IS3Service _s3;
+    private readonly ISemesterService<SemesterDto> _semesterService;
+    private readonly IReviewSessionService<ReviewSessionDto> _reviewSessionService;
 
     public ProposalService(
         ILogger logger,
@@ -42,6 +49,8 @@ public class ProposalService : IProposalService
         IProposalStudentService<ProposalStudentDto> studentService,
         IProposalHistoryService<ProposalHistoryDto> historyService,
         IS3Service s3,
+        ISemesterService<SemesterDto> semesterService,
+        IReviewSessionService<ReviewSessionDto> reviewSessionService,
         IUserService<UserDto> userService)
     {
         _logger = logger;
@@ -54,6 +63,8 @@ public class ProposalService : IProposalService
         _historyService = historyService;
         _userService = userService;
         _s3 = s3;
+        _semesterService = semesterService;
+        _reviewSessionService = reviewSessionService;
         // Khởi tạo OpenSearch client
         var node = new Uri(_appSettings.OpenSearchUrl);
 
@@ -274,6 +285,85 @@ public class ProposalService : IProposalService
     //         throw new Exception("Error invoke when progress upload data with file");
     //     }
     // }
+    public async Task<IServiceResult> AddReviewers(IDictionary<int, List<string>> proposalReviewers)
+    {
+        try
+        {
+            List<(int, ProjectProposalDto)> proposalsToUpdate = new List<(int, ProjectProposalDto)>();
+
+            //Get Role To update
+            // var roleBaseSpec = new BaseSpecification<SystemRole>(x => x.RoleName == Role.Moderator.ToString());
+            // var role = await _roleService.GetWithSpecAsync(roleBaseSpec);
+            // if (role.ResultCode != ResultCodeConst.SYS_Success0002)
+            // {
+            //     return role;
+            // }
+            // var systemRole = (role.Data as SystemRoleDto)!;
+
+            //Get users
+            List<string> emails = proposalReviewers.Values.SelectMany(list => list).ToList();
+            var userBaseSpec = await _userService.GetAllAsync();
+            if (userBaseSpec.ResultCode != ResultCodeConst.SYS_Success0002)
+            {
+                return userBaseSpec;
+            }
+
+            var users = (userBaseSpec.Data as List<UserDto>)!;
+            var userEmails = users.Select(x => x.Email).ToList();
+            var notExistedUser = userEmails.Where(x => !emails.Contains(x)).ToList();
+
+            var existedUsers = users.Where(x => emails.Contains(x.Email)).ToList();
+
+            #region Add new users
+
+            // add new users back to existed users
+
+            #endregion
+
+            List<(int, ProposalHistoryDto)> historyToUpdate = new List<(int, ProposalHistoryDto)>();
+            foreach (var proposalId in proposalReviewers.Keys)
+            {
+                // get by id and latest version
+                var proposalHistory = await _historyService.GetLatestHistoryByProposalIdAsync(proposalId);
+                if (proposalHistory.ResultCode != ResultCodeConst.SYS_Success0002)
+                {
+                    return proposalHistory;
+                }
+
+                var latestHistory = (proposalHistory.Data as ProposalHistoryDto)!;
+
+                // create session
+                latestHistory!.ReviewSessions = existedUsers.Select(x =>
+                {
+                    return new ReviewSessionDto
+                    {
+                        HistoryId = latestHistory.HistoryId,
+                        ReviewerId = x.UserId,
+                        ReviewStatus = ReviewStatus.Pending,
+                        ReviewDate = null
+                    };
+                }).ToList();
+
+                // add history to update
+                historyToUpdate.Add((latestHistory.HistoryId, latestHistory));
+            }
+
+            // Update history
+            var updateResult = await _historyService.AddReviewersAsync(historyToUpdate);
+            if (updateResult.ResultCode != ResultCodeConst.SYS_Success0001)
+            {
+                return updateResult;
+            }
+
+            return new ServiceResult(ResultCodeConst.Proposal_Success0003,
+                await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Success0003));
+        }
+        catch (Exception ex)
+        {
+            return new ServiceResult(ResultCodeConst.Proposal_Warning0001,
+                await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0001) + ": " + ex.Message);
+        }
+    }
 
 
     public async Task<IServiceResult> AddProposalsWithFiles<T>(List<(IFormFile file, T fileDetail)> files,
@@ -346,18 +436,48 @@ public class ProposalService : IProposalService
                     CreatedBy = user.UserId.ToString(),
                     ProposalStudents = students,
                     ProposalSupervisors = supervisors,
-                    FunctionalRequirements = JsonSerializer.Deserialize<List<string>>(extracted.FunctionalRequirements)!,
-                    NonFunctionalRequirements = JsonSerializer.Deserialize<List<string>>(extracted.NonFunctionalRequirements)!,
+                    FunctionalRequirements =
+                        JsonSerializer.Deserialize<List<string>>(extracted.FunctionalRequirements)!,
+                    NonFunctionalRequirements =
+                        JsonSerializer.Deserialize<List<string>>(extracted.NonFunctionalRequirements)!,
                     TechnicalStack = JsonSerializer.Deserialize<List<string>>(extracted.TechnicalStack)!,
                     Tasks = JsonSerializer.Deserialize<List<string>>(extracted.Tasks)!
                 };
 
-                // Create history
+                // Get semester Detail
+                var semesterResponse = await _semesterService.GetByIdAsync(semesterId);
+                if (semesterResponse.ResultCode != ResultCodeConst.SYS_Success0002)
+                {
+                    foreach (var key in uploadedFileKeys)
+                    {
+                        await _s3.DeleteFile(key);
+                    }
+
+                    return semesterResponse;
+                }
+
+                var semester = (semesterResponse.Data as SemesterDto)!;
+
+                var proposalCode = await _historyService.GenerateProposalCodeAsync(semester.SemesterId
+                    , semester.SemesterCode);
+                if (proposalCode.ResultCode != ResultCodeConst.SYS_Success0002)
+                {
+                    foreach (var key in uploadedFileKeys)
+                    {
+                        await _s3.DeleteFile(key);
+                    }
+
+                    return proposalCode;
+                }
+
+                string proposalCodeValue = (proposalCode.Data as string)!;
+
                 var history = fileDetail is ProposalHistoryDto dto
                     ? new ProposalHistoryDto
                     {
                         Status = dto.Status,
-                        Version = dto.Version,
+                        ProposalCode = proposalCodeValue,
+                        Version = 1,
                         Url = fileKey,
                         ProcessById = user.UserId,
                         ProcessDate = DateTime.UtcNow,
@@ -368,6 +488,7 @@ public class ProposalService : IProposalService
                     {
                         Status = ProjectProposalStatus.Pending.ToString(),
                         Version = 1,
+                        ProposalCode = proposalCodeValue,
                         Url = fileKey,
                         ProcessById = user.UserId,
                         ProcessDate = DateTime.UtcNow
@@ -424,6 +545,12 @@ public class ProposalService : IProposalService
             }
 
             var projectProposal = (proposal.Data as ProjectProposalDto)!;
+            if (projectProposal.Status != ProjectProposalStatus.Revised)
+            {
+                return new ServiceResult(ResultCodeConst.Proposal_Warning0004,
+                    await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0004));
+            }
+
             projectProposal.Status = ProjectProposalStatus.Pending;
             var latestVersion = projectProposal.ProposalHistories
                 .Max(h => h.Version);
@@ -454,7 +581,7 @@ public class ProposalService : IProposalService
                 JsonSerializer.Deserialize<List<string>>(extracted.NonFunctionalRequirements)!;
             projectProposal.TechnicalStack = JsonSerializer.Deserialize<List<string>>(extracted.TechnicalStack)!;
             projectProposal.Tasks = JsonSerializer.Deserialize<List<string>>(extracted.Tasks)!;
-            
+
             // extract and check supervisors and students
             var extractedStudents = JsonSerializer
                 .Deserialize<List<ExtractedProposalStudentDto>>(extracted.Students, new JsonSerializerOptions
@@ -469,7 +596,7 @@ public class ProposalService : IProposalService
                     Phone = s.Phone,
                     ProjectProposalId = proposalId
                 }).ToList() ?? new List<ProposalStudentDto>();
-            
+
             // sync students
             var studentTask = GetSyncPlan<ProposalStudentDto>(
                 dtoList: projectProposal.ProposalStudents!.ToList(),
@@ -480,16 +607,35 @@ public class ProposalService : IProposalService
                     a.Email != b.Email ||
                     a.Phone != b.Phone
             );
-            
+
             // Reupload Student details
             await _studentService.ModifyManyAsync(studentTask, proposalId);
-            
+
+            var semesterResponse = await _semesterService.GetByIdAsync(semesterId);
+            if (semesterResponse.ResultCode != ResultCodeConst.SYS_Success0002)
+            {
+                await _s3.DeleteFile(uploadKey);
+                return semesterResponse;
+            }
+
+            var semester = (semesterResponse.Data as SemesterDto)!;
+
+            var proposalCode = await _historyService.GenerateProposalCodeAsync(semester.SemesterId
+                , semester.SemesterCode, proposalId);
+            if (proposalCode.ResultCode != ResultCodeConst.SYS_Success0002)
+            {
+                await _s3.DeleteFile(fileKey);
+                return proposalCode;
+            }
+
+            string proposalCodeValue = (proposalCode.Data as string)!;
             // Create new history
             var history = file.fileDetail is ProposalHistoryDto dto
                 ? new ProposalHistoryDto
                 {
                     Status = dto.Status,
                     Version = latestVersion + 1,
+                    ProposalCode = proposalCodeValue,
                     Url = fileKey,
                     ProcessById = user.UserId,
                     ProcessDate = DateTime.UtcNow,
@@ -500,8 +646,9 @@ public class ProposalService : IProposalService
                 : new ProposalHistoryDto
                 {
                     Status = ProjectProposalStatus.Pending.ToString(),
-                    Version =  latestVersion + 1,
+                    Version = latestVersion + 1,
                     Url = fileKey,
+                    ProposalCode = proposalCodeValue,
                     ProcessById = user.UserId,
                     ProcessDate = DateTime.UtcNow,
                     ProjectProposalId = proposalId
@@ -516,6 +663,7 @@ public class ProposalService : IProposalService
                 await _s3.DeleteFile(fileKey);
                 return updateResult;
             }
+            // delete data in opensearch db
 
             return new ServiceResult(ResultCodeConst.SYS_Success0003,
                 await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0003));
@@ -620,13 +768,13 @@ public class ProposalService : IProposalService
             var user = (userResponse.Data as UserDto)!;
 
             var proposalResponse = await _projectService.GetByIdAsync(proposalId);
-            if(proposalResponse.ResultCode != ResultCodeConst.SYS_Success0002)
+            if (proposalResponse.ResultCode != ResultCodeConst.SYS_Success0002)
                 return proposalResponse;
 
             var proposal = proposalResponse.Data as ProjectProposalDto;
-            
-            if(proposal!.ApproverId.Equals(user.UserId))
-            {            
+
+            if (proposal!.ApproverId.Equals(user.UserId))
+            {
                 return new ServiceResult(ResultCodeConst.Proposal_Warning0003,
                     await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0003));
             }
@@ -636,7 +784,7 @@ public class ProposalService : IProposalService
                 return new ServiceResult(ResultCodeConst.Proposal_Warning0004,
                     await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0004));
             }
-            
+
             var updateResult = await _projectService.UpdateStatus(proposalId, isApproved);
             if (updateResult.ResultCode != ResultCodeConst.SYS_Success0003)
             {
@@ -653,9 +801,106 @@ public class ProposalService : IProposalService
                     (proposal.ProjectProposalId, rawString, proposal.EngTitle)
                 });
             }
-            
+
             return new ServiceResult(ResultCodeConst.SYS_Success0003,
                 await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0003));
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex.Message);
+            throw new Exception("Error invoke when progress update status and upload to opensearch");
+        }
+    }
+
+    public async Task<IServiceResult> SubmitReview<T>(int proposalId, T session, string email) where T : class
+    {
+        try
+        {
+            // Get user
+            var user = await _userService.GetCurrentUserAsync(email);
+            if (user.ResultCode != ResultCodeConst.SYS_Success0002)
+                return user;
+            var userDto = (user.Data as UserDto)!;
+            var baseSpec = new BaseSpecification<ProjectProposal>(x => x.ProjectProposalId == proposalId);
+            baseSpec.ApplyInclude(q => q.Include(p => p.ProposalHistories)
+                .ThenInclude(h => h.ReviewSessions));
+            var proposalResponse = await _projectService.GetWithSpecAsync(baseSpec);
+            if (proposalResponse.ResultCode != ResultCodeConst.SYS_Success0002)
+                return proposalResponse;
+            var proposal = (proposalResponse.Data as ProjectProposalDto)!;
+
+            // // Get latest version
+            // var historyResponse = await _historyService.GetLatestHistoryByProposalIdAsync(proposalId);
+            // if (historyResponse.ResultCode != ResultCodeConst.SYS_Success0002)
+            //     return historyResponse;
+            // var history = (historyResponse.Data as ProposalHistoryDto)!;
+            var history = proposal.ProposalHistories.MaxBy(h => h.Version);
+
+            // Get Session to check if reviewer has this task or not
+            var retrieveSession = await _reviewSessionService.IsReviewerTask(userDto.UserId, history!.HistoryId);
+
+            if (retrieveSession.ResultCode != ResultCodeConst.SYS_Success0002)
+                return new ServiceResult(ResultCodeConst.Review_Warning0001,
+                    await _msgService.GetMessageAsync(ResultCodeConst.Review_Warning0001));
+            var sessionData = (retrieveSession.Data as ReviewSessionDto)!;
+
+            ReviewSessionDto sessionInput = session as ReviewSessionDto ??
+                                            throw new ArgumentException("Invalid session type");
+            // Create List Answer
+            sessionData.Answers = sessionInput.Answers;
+            sessionData.ReviewDate = DateTime.Now;
+            sessionData.Comment = sessionInput.Comment;
+            sessionData.ReviewStatus = sessionInput.ReviewStatus;
+
+            // Count the number of finished sessions to update proposal session
+            var allSessions = await _reviewSessionService.GetByHistoryId(history.HistoryId);
+            if (allSessions.ResultCode != ResultCodeConst.SYS_Success0002)
+                return allSessions;
+
+            var sessions = (allSessions.Data as List<ReviewSessionDto>)!;
+            // Update status of session that still not change in db
+            var index = sessions.FindIndex(s => s.SessionId == sessionData.SessionId);
+            sessions[index] = sessionData;
+            // history.ReviewSessions = sessions;
+            // var existingHistory = proposal.ProposalHistories.FirstOrDefault(h => h.HistoryId == history.HistoryId);
+            // if (existingHistory != null)
+            // {
+            //     existingHistory.ReviewSessions = history.ReviewSessions;
+            // }
+            string proposalStatus = string.Empty;
+            if (sessions.Count(dto => dto.ReviewStatus.Equals(ReviewStatus.Approved)) >= 2)
+            {
+                proposalStatus = ProjectProposalStatus.Approved.ToString();
+                var rawString = proposal.EngTitle + " " +
+                                proposal.ContextText + " " +
+                                proposal.SolutionText;
+                await UploadChunks(new List<(int, string, string)>
+                {
+                    (proposal.ProjectProposalId, rawString, proposal.EngTitle)
+                });
+            }
+            else if (sessions.Count(dto => dto.ReviewStatus.Equals(ReviewStatus.Rejected)) >= 2)
+            {
+                proposalStatus = ProjectProposalStatus.Rejected.ToString();
+            }
+            else if (!sessions.Any(dto => dto.ReviewStatus.Equals(ReviewStatus.Pending)) && sessions.Count >= 2)
+            {
+                proposalStatus = ProjectProposalStatus.Revised.ToString();
+            }
+            else
+            {
+                proposalStatus = ProjectProposalStatus.Pending.ToString();
+            }
+            // Update all
+            var updateSessionResult = await _reviewSessionService.UpdateSubmitSession(sessionData.SessionId,
+                sessionData, proposalStatus);
+            if (updateSessionResult.ResultCode != ResultCodeConst.SYS_Success0003)
+            {
+                return updateSessionResult;
+            }
+
+            return new ServiceResult(ResultCodeConst.Review_Success0001,
+                await _msgService.GetMessageAsync(ResultCodeConst.Review_Success0001));
         }
         catch (Exception ex)
         {
@@ -689,7 +934,6 @@ public class ProposalService : IProposalService
             return new ServiceResult(ResultCodeConst.Proposal_Warning0001,
                 await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0001) + ": " + ex.Message);
         }
-        
     }
 
     private async Task<List<List<ProposalMatch>>> QueryChunks(List<List<double>> vectors, int k = 5)
@@ -895,6 +1139,7 @@ public class ProposalService : IProposalService
 
         return result;
     }
+
     private string RemoveGuidPrefix(string fileName)
     {
         var parts = fileName.Split('_');
@@ -902,6 +1147,7 @@ public class ProposalService : IProposalService
         {
             return string.Join('_', parts.Skip(1));
         }
+
         return fileName;
     }
 }

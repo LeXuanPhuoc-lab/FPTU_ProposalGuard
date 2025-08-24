@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using System.Security.Claims;
+using FPTU_ProposalGuard.Domain;
 using FPTU_ProposalGuard.Domain.Entities;
 using FPTU_ProposalGuard.Domain.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -43,11 +44,10 @@ public class FptuProposalGuardDbContext : DbContext
     public DbSet<ProposalSupervisor> ProposalSupervisors { get; set; }
 
     public DbSet<RefreshToken> RefreshTokens { get; set; }
-
-    public DbSet<Semester> Semesters { get; set; }
-    
     public DbSet<ReviewQuestion> ReviewQuestions { get; set; }
+    public DbSet<ReviewAnswer> ReviewAnswers { get; set; }
     public DbSet<ReviewSession> ReviewSessions { get; set; }
+    public DbSet<Semester> Semesters { get; set; }
 
     public DbSet<SystemRole> SystemRoles { get; set; }
 

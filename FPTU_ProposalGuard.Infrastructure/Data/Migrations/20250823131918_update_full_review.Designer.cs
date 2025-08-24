@@ -4,16 +4,19 @@ using FPTU_ProposalGuard.Infrastructure.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace FPTU_ProposalGuard.Infrastructure.Data.Migrations
+namespace FPTU_ProposalGuard.Infrastructure.Migrations
 {
     [DbContext(typeof(FptuProposalGuardDbContext))]
-    partial class FptuProposalGuardDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250823131918_update_full_review")]
+    partial class update_full_review
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -818,8 +821,9 @@ namespace FPTU_ProposalGuard.Infrastructure.Data.Migrations
                         .HasColumnType("bit")
                         .HasColumnName("answer");
 
-                    b.Property<int?>("ProposalHistoryHistoryId")
-                        .HasColumnType("int");
+                    b.Property<int>("HistoryId")
+                        .HasColumnType("int")
+                        .HasColumnName("history_id");
 
                     b.Property<int>("QuestionId")
                         .HasColumnType("int")
@@ -832,7 +836,7 @@ namespace FPTU_ProposalGuard.Infrastructure.Data.Migrations
                     b.HasKey("AnswerId")
                         .HasName("PK_ReviewAnswer_AnswerId");
 
-                    b.HasIndex("ProposalHistoryHistoryId");
+                    b.HasIndex("HistoryId");
 
                     b.HasIndex("QuestionId");
 
@@ -1020,9 +1024,11 @@ namespace FPTU_ProposalGuard.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("FPTU_ProposalGuard.Domain.ReviewAnswer", b =>
                 {
-                    b.HasOne("FPTU_ProposalGuard.Domain.Entities.ProposalHistory", null)
+                    b.HasOne("FPTU_ProposalGuard.Domain.Entities.ProposalHistory", "History")
                         .WithMany("ReviewAnswers")
-                        .HasForeignKey("ProposalHistoryHistoryId");
+                        .HasForeignKey("HistoryId")
+                        .IsRequired()
+                        .HasConstraintName("FK_ReviewAnswer_HistoryId");
 
                     b.HasOne("FPTU_ProposalGuard.Domain.Entities.ReviewQuestion", "Question")
                         .WithMany("ReviewAnswers")
@@ -1037,6 +1043,8 @@ namespace FPTU_ProposalGuard.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_ReviewAnswer_SessionId");
+
+                    b.Navigation("History");
 
                     b.Navigation("Question");
 

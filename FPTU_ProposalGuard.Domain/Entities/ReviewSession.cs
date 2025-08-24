@@ -10,13 +10,16 @@ public class ReviewSession
     public Guid ReviewerId { get; set; }
     public int HistoryId { get; set; }
 
-    public DateTime? ReviewDate { get; set; } = null;
-
+    public DateTime? ReviewDate { get; set; }
+    public string? Comment { get; set; }
+    
     public ReviewStatus ReviewStatus { get; set; }
 
-    [JsonIgnore] public User Reviewer { get; set; } = null!;
+    [JsonIgnore]
+    public User Reviewer { get; set; } = null!;
 
-    [JsonIgnore] public ProposalHistory History { get; set; } = null!;
+    [JsonIgnore]
+    public ProposalHistory History { get; set; } = null!;
 
     public ICollection<ReviewAnswer> Answers { get; set; } = new List<ReviewAnswer>();
 }

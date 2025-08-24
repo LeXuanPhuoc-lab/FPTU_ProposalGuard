@@ -12,4 +12,5 @@ public interface IProjectProposalService <TDto> : IGenericService<ProjectProposa
     Task<IServiceResult> UpdateAsync( int id,TDto dto);
     Task<IServiceResult> UpdateStatus(int id, bool isApproved);
     Task<IServiceResult> ExportSemesterReport(int? semesterId);
+    Task<IServiceResult> UpdateReviewedProposal(int id, TDto dto);
 }

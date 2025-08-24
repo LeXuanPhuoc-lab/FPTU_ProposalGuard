@@ -8,6 +8,7 @@ using FPTU_ProposalGuard.Application.Dtos.SystemRoles;
 using FPTU_ProposalGuard.Application.Dtos.Users;
 using FPTU_ProposalGuard.Application.Services;
 using FPTU_ProposalGuard.Application.Services.IExternalServices;
+using FPTU_ProposalGuard.Domain.Interfaces;
 using FPTU_ProposalGuard.Domain.Entities;
 using FPTU_ProposalGuard.Domain.Interfaces.Services;
 using FPTU_ProposalGuard.Domain.Interfaces.Services.Base;
@@ -44,7 +45,7 @@ public static class DependencyInjection
         services.AddScoped<ISemesterService<SemesterDto>, SemesterService>();
         services.AddScoped<IProposalSupervisorService<ProposalSupervisorDto>, ProposalSupervisorService>();
         services.AddScoped<IProposalHistoryService<ProposalHistoryDto>, ProposalHistoryService>();
-
+        
         return services
             .ConfigureMapster() // Add mapster
             .ConfigureCloudinary() // Add cloudinary
