@@ -1,7 +1,9 @@
 using System.Text.RegularExpressions;
 using FPTU_ProposalGuard.Application.Common;
 using FPTU_ProposalGuard.Application.Dtos.Proposals;
+using FPTU_ProposalGuard.Application.Exceptions;
 using FPTU_ProposalGuard.Application.Utils;
+using FPTU_ProposalGuard.Domain;
 using FPTU_ProposalGuard.Domain.Common.Enums;
 using FPTU_ProposalGuard.Domain.Entities;
 using FPTU_ProposalGuard.Domain.Interfaces;
@@ -9,6 +11,7 @@ using FPTU_ProposalGuard.Domain.Interfaces.Repositories;
 using FPTU_ProposalGuard.Domain.Interfaces.Services;
 using FPTU_ProposalGuard.Domain.Interfaces.Services.Base;
 using FPTU_ProposalGuard.Domain.Specifications;
+using Mapster;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -235,6 +238,87 @@ public class ProposalHistoryService(
             _logger.Error(ex.Message);
             throw new Exception("Error invoke when process update History");
         }
+    }
+
+    public async Task<IServiceResult> UpdateHistoryReview(int id, ProposalHistoryDto dto, string proposalStatus)
+    {
+        // Initiate service result
+        var serviceResult = new ServiceResult();    
+        try
+        {
+            var baseSpec = new BaseSpecification<ProposalHistory>(ph => ph.HistoryId == id);
+            baseSpec.ApplyInclude(q => q.Include(h => h.ProjectProposal)
+                .Include(h => h.ReviewSessions)
+                .ThenInclude(s=> s.Answers));
+            var existingEntity = await _unitOfWork.Repository<ProposalHistory, int>().GetWithSpecAsync(baseSpec);
+            if (existingEntity == null)
+            {
+                // Not found {0}
+                var errMsg = await _msgService.GetMessageAsync(ResultCodeConst.SYS_Warning0002);
+                return new ServiceResult(ResultCodeConst.SYS_Warning0002,
+                    StringUtils.Format(errMsg, "lịch sử để tiến hành sửa đổi"));
+            }
+            // Update review sessions
+            existingEntity.ProjectProposal.Status = proposalStatus switch
+            {
+                "Approved" => ProjectProposalStatus.Approved,
+                "Rejected" => ProjectProposalStatus.Rejected,
+                "Pending" => ProjectProposalStatus.Pending,
+                "Revised" => ProjectProposalStatus.Revised,
+                _ => existingEntity.ProjectProposal.Status
+            };
+            // _mapper.Map(dto, existingEntity);
+            
+            dto.Adapt(existingEntity);
+            foreach (var existingEntityReviewSession in existingEntity.ReviewSessions)
+            {
+                // Find the corresponding review session in dto
+                var reviewSessionDto = dto.ReviewSessions.FirstOrDefault(rs => rs.SessionId == existingEntityReviewSession.SessionId);
+                if (reviewSessionDto != null)
+                {
+                    // Update existing review session with dto values
+                    existingEntityReviewSession.ReviewDate = reviewSessionDto.ReviewDate;
+                    existingEntityReviewSession.Comment = reviewSessionDto.Comment;
+                    existingEntityReviewSession.ReviewStatus = reviewSessionDto.ReviewStatus;
+                    existingEntityReviewSession.Answers = _mapper.Map<List<ReviewAnswer>>(reviewSessionDto.Answers);
+                }
+            }
+            
+            // Process update
+            await _unitOfWork.Repository<ProposalHistory, int>().UpdateAsync(existingEntity);
+            // Check if there are any differences between the original and the updated entity
+            if (!_unitOfWork.Repository<ProposalHistory, int>().HasChanges(existingEntity))
+            {
+                serviceResult.ResultCode = ResultCodeConst.SYS_Success0003;
+                serviceResult.Message = await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0003);
+                serviceResult.Data = true;
+                return serviceResult;
+            }
+
+            // Save changes to DB
+            var rowsAffected = await _unitOfWork.SaveChangesAsync();
+            if (rowsAffected == 0)
+            {
+                serviceResult.ResultCode = ResultCodeConst.SYS_Fail0003;
+                serviceResult.Message = await _msgService.GetMessageAsync(ResultCodeConst.SYS_Fail0003);
+                serviceResult.Data = false;
+            }
+
+            // Mark as update success
+            serviceResult.ResultCode = ResultCodeConst.SYS_Success0003;
+            serviceResult.Message = await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0003);
+            serviceResult.Data = true;
+        }
+        catch (UnprocessableEntityException)
+        {
+            throw;
+        }
+        catch (Exception ex)    
+        {
+            _logger.Error(ex.Message);
+            throw;
+        }
+        return serviceResult;
     }
 
     private string GenerateProposalCode(List<string> codes, string semesterCode, int? version)

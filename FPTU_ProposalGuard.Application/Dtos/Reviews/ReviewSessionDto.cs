@@ -12,7 +12,7 @@ public class ReviewSessionDto
     public Guid ReviewerId { get; set; }
     public int HistoryId { get; set; }
 
-    public DateTime ReviewDate { get; set; }
+    public DateTime? ReviewDate { get; set; }
     public string? Comment { get; set; }    
     public ReviewStatus ReviewStatus { get; set; }
     

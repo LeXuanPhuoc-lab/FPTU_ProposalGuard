@@ -10,8 +10,6 @@ public class ReviewAnswer
 
     public int ReviewSessionId { get; set; }
     public int QuestionId { get; set; }
-    public int HistoryId { get; set; }
-
     public bool Answer { get; set; }
 
     [JsonIgnore]
@@ -20,6 +18,4 @@ public class ReviewAnswer
     [JsonIgnore]
     public ReviewQuestion Question { get; set; } = null!;
 
-    [JsonIgnore]
-    public ProposalHistory History { get; set; } = null!;
 }

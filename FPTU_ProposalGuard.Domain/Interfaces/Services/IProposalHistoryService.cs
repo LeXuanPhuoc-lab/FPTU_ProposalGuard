@@ -11,4 +11,5 @@ public interface IProposalHistoryService<TDto> : IGenericService<ProposalHistory
     Task<IServiceResult> AddReviewersAsync(List<(int id, TDto dto)> input);
     Task<IServiceResult> GenerateProposalCodeAsync(int semesterId,string semesterCode,int? proposalId = null);
     Task<IServiceResult> GetLatestHistoryByProposalIdAsync(int proposalId);
+    Task<IServiceResult> UpdateHistoryReview(int id, TDto dto, string proposalStatus);
 }

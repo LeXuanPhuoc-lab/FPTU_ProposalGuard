@@ -68,5 +68,20 @@ public class MappingRegistration : IRegister
             .IgnoreNullValues(true);
         config.NewConfig<ProposalSupervisorDto, ProposalSupervisor>()
             .IgnoreNullValues(true);
+        config.NewConfig<ProposalHistoryDto, ProposalHistory>()
+            .Ignore(dest => dest.ProjectProposal)
+            .Ignore(dest => dest.ReviewSessions)
+            .IgnoreNullValues(true);
+
+        // config.NewConfig<ReviewSessionDto, ReviewSession>()
+        //     .Ignore(dest => dest.Reviewer)
+        //     .Ignore(dest => dest.History)
+        //     .Ignore(dest => dest.Answers)
+        //     .IgnoreNullValues(true);
+        //
+        // config.NewConfig<ReviewAnswerDto, ReviewAnswer>()
+        //     .Ignore(dest => dest.ReviewSession)
+        //     .Ignore(dest => dest.Question)
+        //     .IgnoreNullValues(true);
     }
 }

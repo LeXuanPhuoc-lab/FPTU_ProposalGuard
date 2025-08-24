@@ -293,7 +293,7 @@ public class ResultCodeConst
     /// </summary>
     public static string Proposal_Warning0003 = "Proposal.Warning0003";
     /// <summary>
-    /// [WARNING] Only Pending can be changed to Approved or Rejected	
+    /// [WARNING] Only Revised Proposal can be reuploaded
     /// </summary>
     public static string Proposal_Warning0004 = "Proposal.Warning0004";
     /// <summary>
@@ -316,7 +316,7 @@ public class ResultCodeConst
     /// </summary>
     public static string Review_Success0001 = "Review.Success0001";
     /// <summary>
-    /// [SUCCESS] Number of answer is
+    /// [Warning] This user does not have permission to review this proposal 
     /// </summary>
     public static string Review_Warning0001 = "Review.Warning0001";
     

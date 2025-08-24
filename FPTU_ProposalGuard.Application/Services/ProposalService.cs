@@ -303,7 +303,7 @@ public class ProposalService : IProposalService
             //Get users
             List<string> emails = proposalReviewers.Values.SelectMany(list => list).ToList();
             var userBaseSpec = await _userService.GetAllAsync();
-            if (userBaseSpec.ResultCode != ResultCodeConst.SYS_Success0001)
+            if (userBaseSpec.ResultCode != ResultCodeConst.SYS_Success0002)
             {
                 return userBaseSpec;
             }
@@ -330,7 +330,7 @@ public class ProposalService : IProposalService
                     return proposalHistory;
                 }
 
-                var latestHistory = (proposalHistory.Data as List<ProposalHistoryDto>)!.MaxBy(x => x.Version);
+                var latestHistory = (proposalHistory.Data as ProposalHistoryDto)!;
 
                 // create session
                 latestHistory!.ReviewSessions = existedUsers.Select(x =>
@@ -340,6 +340,7 @@ public class ProposalService : IProposalService
                         HistoryId = latestHistory.HistoryId,
                         ReviewerId = x.UserId,
                         ReviewStatus = ReviewStatus.Pending,
+                        ReviewDate = null
                     };
                 }).ToList();
 
@@ -544,6 +545,12 @@ public class ProposalService : IProposalService
             }
 
             var projectProposal = (proposal.Data as ProjectProposalDto)!;
+            if (projectProposal.Status != ProjectProposalStatus.Revised)
+            {
+                return new ServiceResult(ResultCodeConst.Proposal_Warning0004,
+                    await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0004));
+            }
+
             projectProposal.Status = ProjectProposalStatus.Pending;
             var latestVersion = projectProposal.ProposalHistories
                 .Max(h => h.Version);
@@ -833,7 +840,8 @@ public class ProposalService : IProposalService
             var retrieveSession = await _reviewSessionService.IsReviewerTask(userDto.UserId, history!.HistoryId);
 
             if (retrieveSession.ResultCode != ResultCodeConst.SYS_Success0002)
-                return retrieveSession;
+                return new ServiceResult(ResultCodeConst.Review_Warning0001,
+                    await _msgService.GetMessageAsync(ResultCodeConst.Review_Warning0001));
             var sessionData = (retrieveSession.Data as ReviewSessionDto)!;
 
             ReviewSessionDto sessionInput = session as ReviewSessionDto ??
@@ -851,21 +859,18 @@ public class ProposalService : IProposalService
 
             var sessions = (allSessions.Data as List<ReviewSessionDto>)!;
             // Update status of session that still not change in db
-            var existingHistory = proposal.ProposalHistories
-                .FirstOrDefault(h => h.HistoryId == history.HistoryId);
-
-            if (existingHistory != null)
-            {
-                proposal.ProposalHistories.Remove(existingHistory);
-            }
-            proposal.ProposalHistories.Add(history);
-            
             var index = sessions.FindIndex(s => s.SessionId == sessionData.SessionId);
             sessions[index] = sessionData;
-
+            // history.ReviewSessions = sessions;
+            // var existingHistory = proposal.ProposalHistories.FirstOrDefault(h => h.HistoryId == history.HistoryId);
+            // if (existingHistory != null)
+            // {
+            //     existingHistory.ReviewSessions = history.ReviewSessions;
+            // }
+            string proposalStatus = string.Empty;
             if (sessions.Count(dto => dto.ReviewStatus.Equals(ReviewStatus.Approved)) >= 2)
             {
-                proposal.Status = ProjectProposalStatus.Approved;
+                proposalStatus = ProjectProposalStatus.Approved.ToString();
                 var rawString = proposal.EngTitle + " " +
                                 proposal.ContextText + " " +
                                 proposal.SolutionText;
@@ -876,15 +881,19 @@ public class ProposalService : IProposalService
             }
             else if (sessions.Count(dto => dto.ReviewStatus.Equals(ReviewStatus.Rejected)) >= 2)
             {
-                proposal.Status = ProjectProposalStatus.Rejected;
+                proposalStatus = ProjectProposalStatus.Rejected.ToString();
             }
-            else if (!sessions.Any(dto => dto.ReviewStatus.Equals(ReviewStatus.Pending)))
+            else if (!sessions.Any(dto => dto.ReviewStatus.Equals(ReviewStatus.Pending)) && sessions.Count >= 2)
             {
-                proposal.Status = ProjectProposalStatus.Revised;
+                proposalStatus = ProjectProposalStatus.Revised.ToString();
             }
-            
+            else
+            {
+                proposalStatus = ProjectProposalStatus.Pending.ToString();
+            }
             // Update all
-            var updateSessionResult = await _projectService.UpdateAsync(proposalId, proposal);
+            var updateSessionResult = await _reviewSessionService.UpdateSubmitSession(sessionData.SessionId,
+                sessionData, proposalStatus);
             if (updateSessionResult.ResultCode != ResultCodeConst.SYS_Success0003)
             {
                 return updateSessionResult;

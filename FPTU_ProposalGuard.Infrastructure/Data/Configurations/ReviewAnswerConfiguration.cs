@@ -21,10 +21,7 @@ public class ReviewAnswerConfiguration : IEntityTypeConfiguration<ReviewAnswer>
 
         builder.Property(a => a.QuestionId)
             .HasColumnName("question_id");
-
-        builder.Property(a => a.HistoryId)
-            .HasColumnName("history_id");
-
+        
         builder.Property(a => a.Answer)
             .HasColumnName("answer");
 
@@ -39,11 +36,5 @@ public class ReviewAnswerConfiguration : IEntityTypeConfiguration<ReviewAnswer>
             .HasForeignKey(a => a.QuestionId)
             .OnDelete(DeleteBehavior.ClientSetNull) 
             .HasConstraintName("FK_ReviewAnswer_QuestionId");
-        
-        builder.HasOne(a => a.History)
-            .WithMany(h => h.ReviewAnswers)
-            .HasForeignKey(a => a.HistoryId)
-            .OnDelete(DeleteBehavior.ClientSetNull) 
-            .HasConstraintName("FK_ReviewAnswer_HistoryId");
     }
 }
