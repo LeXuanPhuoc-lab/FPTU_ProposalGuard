@@ -28,4 +28,5 @@ public interface IUserService<TDto> : IGenericService<User, TDto, Guid>
     Task<IServiceResult> UndoDeleteAsync(Guid userId);
     Task<IServiceResult> UndoDeleteRangeAsync(Guid[] userIds);
     Task<IServiceResult> DeleteRangeAsync(Guid[] userIds);
+    Task<IServiceResult> CreateUnexistingUsersAsync(List<TDto> dtos);
 }

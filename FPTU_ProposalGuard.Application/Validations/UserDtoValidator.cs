@@ -8,7 +8,7 @@ namespace FPTU_ProposalGuard.Application.Validations;
 
 public class UserDtoValidator : AbstractValidator<UserDto>
 {
-    public UserDtoValidator()
+    public   UserDtoValidator()
     {
         // Email
             RuleFor(u => u.Email)
