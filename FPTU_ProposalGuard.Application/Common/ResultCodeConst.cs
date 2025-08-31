@@ -319,6 +319,9 @@ public class ResultCodeConst
     /// [Warning] This user does not have permission to review this proposal 
     /// </summary>
     public static string Review_Warning0001 = "Review.Warning0001";
-    
+    /// <summary>
+    /// [Warning] Reviewers do not have the same role 
+    /// </summary>
+    public static string Review_Warning0002 = "Review.Warning0002";
     #endregion
 }
