@@ -106,7 +106,7 @@ public class ProposalController(
         return Ok(await projectProposalService.GetByIdAsync(id));
     }
 
-    // [Authorize]
+    [Authorize]
     [HttpGet(APIRoute.Proposal.ExportSemesterReport, Name = nameof(ExportSemesterReport))]
     public async Task<IActionResult> ExportSemesterReport([FromQuery] int? semesterId)
     {
@@ -128,6 +128,6 @@ public class ProposalController(
     {
         var email = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value!;
         return Ok(await proposalService.SubmitReview<ReviewSessionDto>(id
-            , req.ToDto() ,email));
+            , req.ToDto(), email));
     }
 }

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using FPTU_ProposalGuard.Application.Dtos.Semesters;
 using FPTU_ProposalGuard.Application.Dtos.Users;
 using FPTU_ProposalGuard.Domain.Common.Enums;
 
@@ -61,6 +62,8 @@ public class ProjectProposalDto
     // [JsonIgnore]
     public ICollection<ProposalSupervisorDto>? ProposalSupervisors { get; set; } = new List<ProposalSupervisorDto>();
     public ICollection<ProposalHistoryDto> ProposalHistories { get; set; } = new List<ProposalHistoryDto>();
+
+    public SemesterDto Semester { get; set; } = null!;
 }
 
 public class ExtendProjectProposalDto : ProjectProposalDto
