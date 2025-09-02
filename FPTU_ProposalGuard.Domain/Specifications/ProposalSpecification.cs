@@ -37,6 +37,8 @@ public class ProposalSpecification : BaseSpecification<ProjectProposal>
         ApplyInclude(q => q.Include(p => p.ProposalSupervisors!)
             .Include(p => p.ProposalStudents!)
             .Include(p => p.Semester)
+            .Include(p => p.ProposalHistories.OrderByDescending(h => h.Version))
+            .ThenInclude(p => p.ReviewSessions)
         );
 
         //Default order by created date

@@ -225,13 +225,7 @@ public class DatabaseInitializer(FptuProposalGuardDbContext context, ILogger log
                 AnswerType = AnswerType.YesNo,
                 QuestionContent =
                     "Đề tài xây dựng hướng đến việc giải quyết các vấn đề thực tế (Applicability) và khả thi về mặt công nghệ (technologically feasible) trong giới hạn thời gian của dự án?"
-            },
-            new()
-            {
-                AnswerType = AnswerType.ShortAnswer,
-                QuestionContent =
-                    "Nhận xét/đánh giá"
-            },
+            }
         };
 
         // Add range

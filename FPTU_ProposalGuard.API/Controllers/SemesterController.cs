@@ -18,4 +18,12 @@ public class SemesterController(
         var result = await questionService.GetCurrentSemester();
         return Ok(result);
     }
+    
+    [Authorize]
+    [HttpGet(APIRoute.Semester.GetSemesters, Name = nameof(GetSemesters))]
+    public async Task<IActionResult> GetSemesters()
+    {
+        var result = await questionService.GetSemesters();
+        return Ok(result);
+    }
 }

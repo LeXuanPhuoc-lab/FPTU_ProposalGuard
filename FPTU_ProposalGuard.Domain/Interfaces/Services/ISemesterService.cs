@@ -7,4 +7,5 @@ public interface ISemesterService<TDto> : IGenericService<Semester, TDto, int>
     where TDto : class
 {
     Task<IServiceResult> GetCurrentSemester();
+    Task<IServiceResult> GetSemesters();
 }

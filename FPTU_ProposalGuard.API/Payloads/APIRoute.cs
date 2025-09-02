@@ -118,7 +118,7 @@ public class APIRoute
         public const string AddReviewers = Base +"/proposals/reviewers";
         public const string AddProposals = Base + "/proposals";
         public const string CheckDuplicatedProposal = Base + "/proposals/check-duplicate";
-        public const string SubmitReview = Base + "/propsoals/{id}/submit-review";
+        public const string SubmitReview = Base + "/proposals/{id}/submit-review";
         //[PUT]
         public const string UpdateStatus = Base + "/proposals/{proposalId}/status";
         public const string ReUploadProposal = Base + "/proposals/re-upload/{proposalId}";
@@ -139,6 +139,7 @@ public class APIRoute
     {
         // [GET]
         public const string GetCurrentSemester = Base + "/semesters/current";
+        public const string GetSemesters = Base + "/semesters";
         // [POST]
      
         // [PATCH]

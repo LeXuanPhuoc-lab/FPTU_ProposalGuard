@@ -13,7 +13,7 @@ builder.Services
     {
         options.AddPolicy("AllowAll", policy =>
         {
-            policy
+            policy.WithOrigins(["http://localhost:5173"])
                 .AllowAnyOrigin() // Cho phép mọi domain
                 .AllowAnyMethod() // Cho phép mọi HTTP method (GET, POST, PUT, DELETE,...)
                 .AllowAnyHeader(); // Cho phép mọi header

@@ -52,4 +52,12 @@ public class SemesterService(
             await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0002),
             semesterEntity);
     }
+
+    public async Task<IServiceResult> GetSemesters()
+    {
+        var semesterEntities = await unitOfWork.Repository<Semester, int>().GetAllAsync();
+        return new ServiceResult(ResultCodeConst.SYS_Success0002,
+            await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0002),
+            semesterEntities);
+    }
 }
