@@ -277,9 +277,13 @@ public class ResultCodeConst
     /// </summary>
     public static string Proposal_Success0002 = "Proposal.Success0002";
     /// <summary>
-    /// [SUCCESS] Add reviewer successfully
+    /// [SUCCESS] Add reviewers successfully
     /// </summary>
     public static string Proposal_Success0003 = "Proposal.Success0003";
+    /// <summary>
+    /// [SUCCESS] Add new reviewers successfully but some are already added. Please check the amount again. 
+    /// </summary>
+    public static string Proposal_Success0004 = "Proposal.Success0004";
     /// <summary>
     /// [WARNING] Something went wrong while processing the file
     /// </summary>
@@ -300,6 +304,10 @@ public class ResultCodeConst
     /// [WARNING] Some proposals do not have enough reviewers assigned or have not been reviewed yet.
     /// </summary>
     public static string Proposal_Warning0005 = "Proposal.Warning0005";
+    /// <summary>
+    /// [WARNING] All reviewers are already added
+    /// </summary>
+    public static string Proposal_Warning0006 = "Proposal.Warning0006";
     #endregion
 
     #region ProposalStudent
