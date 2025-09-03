@@ -89,6 +89,12 @@ public class DatabaseInitializer(FptuProposalGuardDbContext context, ILogger log
                 RoleName = nameof(Role.Lecturer),
                 NormalizedName = nameof(Role.Lecturer).ToUpper(),
                 Description = Role.Lecturer.GetDescription()
+            },
+            new()
+            {
+                RoleName = nameof(Role.Moderator),
+                NormalizedName = nameof(Role.Lecturer).ToUpper(),
+                Description = Role.Moderator.GetDescription()
             }
         };
         // Add range
@@ -124,6 +130,42 @@ public class DatabaseInitializer(FptuProposalGuardDbContext context, ILogger log
                 CreateDate = DateTime.UtcNow,
                 TwoFactorEnabled = false,
                 RoleId = roles.First(r => r.RoleName == nameof(Role.Administration)).RoleId
+            },
+            new()
+            {
+                Email = "moderator@gmail.com",
+                FirstName = "Moderator",
+                PasswordHash = BC.EnhancedHashPassword("@Moderator123", 13),
+                IsActive = true,
+                EmailConfirmed = true,
+                IsDeleted = false,
+                CreateDate = DateTime.UtcNow,
+                TwoFactorEnabled = false,
+                RoleId = roles.First(r => r.RoleName == nameof(Role.Moderator)).RoleId
+            },
+            new()
+            {
+                Email = "Lecturer1@gmail.com",
+                FirstName = "Lecturer1",
+                PasswordHash = BC.EnhancedHashPassword("@Lecturer123", 13),
+                IsActive = true,
+                EmailConfirmed = true,
+                IsDeleted = false,
+                CreateDate = DateTime.UtcNow,
+                TwoFactorEnabled = false,
+                RoleId = roles.First(r => r.RoleName == nameof(Role.Lecturer)).RoleId
+            },
+            new()
+            {
+                Email = "Lecturer2@gmail.com",
+                FirstName = "Lecturer2",
+                PasswordHash = BC.EnhancedHashPassword("@Lecturer123", 13),
+                IsActive = true,
+                EmailConfirmed = true,
+                IsDeleted = false,
+                CreateDate = DateTime.UtcNow,
+                TwoFactorEnabled = false,
+                RoleId = roles.First(r => r.RoleName == nameof(Role.Lecturer)).RoleId
             }
         };
 
@@ -225,13 +267,7 @@ public class DatabaseInitializer(FptuProposalGuardDbContext context, ILogger log
                 AnswerType = AnswerType.YesNo,
                 QuestionContent =
                     "Đề tài xây dựng hướng đến việc giải quyết các vấn đề thực tế (Applicability) và khả thi về mặt công nghệ (technologically feasible) trong giới hạn thời gian của dự án?"
-            },
-            new()
-            {
-                AnswerType = AnswerType.ShortAnswer,
-                QuestionContent =
-                    "Nhận xét/đánh giá"
-            },
+            }
         };
 
         // Add range

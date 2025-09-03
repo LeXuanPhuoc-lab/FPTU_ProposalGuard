@@ -12,5 +12,7 @@ public enum Role
     Lecturer,
     // Reviewer
     [Description("Giảng viên thẩm định")]
-    Reviewer
+    Reviewer,
+    [Description("Người giám sát")]
+    Moderator,
 }

@@ -325,9 +325,9 @@ public class ProposalService : IProposalService
             var notExistedUser = emails.Where(x => !userEmails.Contains(x)).ToList();
 
             var existedUsers = users.Where(x => emails.Contains(x.Email)).ToList();
-
+            
             #region Add new users
-            var getRoleSpec = new BaseSpecification<SystemRole>(x => x.RoleName == Role.Reviewer.ToString());
+            var getRoleSpec = new BaseSpecification<SystemRole>(x => x.RoleName == Role.Lecturer.ToString());
             var roleResponse = await _roleService.GetWithSpecAsync(getRoleSpec);
             if (roleResponse.ResultCode != ResultCodeConst.SYS_Success0002)
             {
