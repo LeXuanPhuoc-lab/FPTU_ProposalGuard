@@ -329,6 +329,8 @@ public class ProjectProposalService(
         var proposalsNotReviewedDone = proposalEntities.Where(p =>
             p.ProposalHistories.LastOrDefault()!.ReviewSessions.Any(rs =>
                 rs.ReviewStatus.Equals(ReviewStatus.Pending))).ToList().Adapt<List<ProjectProposalDto>>();
+        var proposalsNeedRevised = proposalEntities.Where(p => p.Status.Equals(ProjectProposalStatus.Revised)).ToList()
+            .Adapt<List<ProjectProposalDto>>();
 
         var mappedProposalsNotEnoughReviewers = proposalsNotEnoughReviewers.Select(p => new
         {
@@ -362,14 +364,32 @@ public class ProjectProposalService(
                 }).ToList(),
         });
 
-        if (proposalsNotEnoughReviewers.Count != 0 || proposalsNotReviewedDone.Count != 0)
+        var mappedProposalsNeedRevised = proposalsNeedRevised.Select(p => new
+        {
+            p.ProjectProposalId,
+            p.VieTitle,
+            p.EngTitle,
+            p.Abbreviation,
+            p.Submitter,
+            Supervisors = p.ProposalSupervisors?.Select(ps => ps.Email) ?? [],
+            Reviewers = p.ProposalHistories.LastOrDefault()!.ReviewSessions
+                .Select(rs => new
+                {
+                    rs.Reviewer,
+                    rs.ReviewStatus
+                }).ToList(),
+        });
+
+        if (proposalsNotEnoughReviewers.Count != 0 || proposalsNotReviewedDone.Count != 0 ||
+            proposalsNeedRevised.Count != 0)
         {
             return new ServiceResult(ResultCodeConst.Proposal_Warning0005,
                 await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0005),
                 new
                 {
                     proposalsNotEnoughReviewers = mappedProposalsNotEnoughReviewers,
-                    proposalsNotReviewedDone = mappedProposalsNotReviewedDone
+                    proposalsNotReviewedDone = mappedProposalsNotReviewedDone,
+                    proposalsNeedRevised = mappedProposalsNeedRevised,
                 });
         }
 
