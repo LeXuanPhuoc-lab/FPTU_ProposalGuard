@@ -3,6 +3,7 @@ using FPTU_ProposalGuard.Application.Common;
 using FPTU_ProposalGuard.Application.Configurations;
 using FPTU_ProposalGuard.Application.Dtos;
 using FPTU_ProposalGuard.Application.Dtos.Authentications;
+using FPTU_ProposalGuard.Application.Dtos.Proposals;
 using FPTU_ProposalGuard.Application.Dtos.SystemRoles;
 using FPTU_ProposalGuard.Application.Dtos.Users;
 using FPTU_ProposalGuard.Application.Exceptions;
@@ -47,6 +48,7 @@ public class UserService : GenericService<User, UserDto, Guid>, IUserService<Use
     private readonly HttpClient _httpClient;
     private readonly IEmailService _emailService;
     private readonly IRefreshTokenService<RefreshTokenDto> _refreshTokenService;
+    private readonly IProposalHistoryService<ProposalHistoryDto> _historyService;
     private readonly ISystemRoleService<SystemRoleDto> _roleService;
 
     public UserService(
@@ -58,6 +60,7 @@ public class UserService : GenericService<User, UserDto, Guid>, IUserService<Use
         IUnitOfWork unitOfWork,
         IMapper mapper,
         ILogger logger,
+        IProposalHistoryService<ProposalHistoryDto> historyService,
         TokenValidationParameters tokenValidationParams,
         IOptionsMonitor<WebTokenSettings> monitor,
         IOptionsMonitor<GoogleAuthSettings> monitor1,
@@ -76,6 +79,7 @@ public class UserService : GenericService<User, UserDto, Guid>, IUserService<Use
         _emailService = emailService;
         _roleService = roleService;
         _refreshTokenService = refreshTokenService;
+        _historyService = historyService;
     }
 
     public override async Task<IServiceResult> CreateAsync(UserDto dto)
@@ -1697,6 +1701,54 @@ public class UserService : GenericService<User, UserDto, Guid>, IUserService<Use
         {
             _logger.Error(ex.Message);
             throw new Exception("Error invoke when process delete range user");
+        }
+    }
+
+    public async Task<IServiceResult> GetReviewerByProposal(int proposalId)
+    {
+        try
+        {
+            // get latest historyId of proposal
+            var latestHistory = await _historyService.GetLatestHistoryByProposalIdAsync(proposalId);
+            if (latestHistory.Data == null)
+            {
+                return new ServiceResult(ResultCodeConst.SYS_Warning0002,
+                    await _msgService.GetMessageAsync(ResultCodeConst.SYS_Warning0002));
+            }
+
+            var history = (latestHistory.Data as ProposalHistoryDto)!;
+            var userBaseSpec = new BaseSpecification<User>(x => x.ReviewSessions
+                .Select(rs => rs.HistoryId).Contains(history.HistoryId));
+            userBaseSpec.ApplyInclude(q => q.Include(u => u.ReviewSessions));
+            var users = await _userRepository.GetAllWithSpecAsync(userBaseSpec);
+            if (!users.Any())
+            {
+                return new ServiceResult(ResultCodeConst.SYS_Warning0002,
+                    await _msgService.GetMessageAsync(ResultCodeConst.SYS_Warning0002));
+            }
+            var localConfig = new TypeAdapterConfig();
+            localConfig.NewConfig<User, UserDto>()
+                .Ignore(dest => dest.PasswordHash!)
+                .Ignore(dest => dest.RoleId)
+                .Ignore(dest => dest.EmailConfirmed)
+                .Ignore(dest => dest.TwoFactorEnabled)
+                .Ignore(dest => dest.PhoneNumberConfirmed)
+                .Ignore(dest => dest.TwoFactorSecretKey!)
+                .Ignore(dest => dest.TwoFactorBackupCodes!)
+                .Ignore(dest => dest.PhoneVerificationCode!)
+                .Ignore(dest => dest.EmailVerificationCode!)
+                .Ignore(dest => dest.PhoneVerificationExpiry!)
+                .Ignore(dest => dest.ReviewSessions)
+                .Map(dto => dto.Role, src => src.Role)
+                .AfterMapping((src, dest) => { dest.Role.RoleId = 0; }); 
+            return new ServiceResult(ResultCodeConst.SYS_Success0002,
+                await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0002),
+                users.Adapt<List<UserDto>>(localConfig));
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex.Message);
+            throw new Exception("Error invoke when process get reviewer");
         }
     }
 
