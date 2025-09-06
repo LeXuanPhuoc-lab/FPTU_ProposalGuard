@@ -12,7 +12,7 @@ public class S3Service : IS3Service
     private readonly string _bucketName;
     private readonly AmazonS3Client _s3Client;
 
-    public S3Service(IOptionsMonitor<AmazonS3Settings> appSettings)
+    public S3Service(IOptionsMonitor<AWSSettings> appSettings)
     {
         var accessKey = appSettings.CurrentValue.AccessKey;
         var secretKey = appSettings.CurrentValue.SecretKey;

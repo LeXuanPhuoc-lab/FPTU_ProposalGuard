@@ -6,6 +6,8 @@ using FPTU_ProposalGuard.Domain.Interfaces.Services.Base;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
+using Amazon;
+using Amazon.Runtime;
 using Amazon.S3.Model;
 using FPTU_ProposalGuard.Application.Dtos;
 using FPTU_ProposalGuard.Application.Dtos.Proposals;
@@ -29,7 +31,8 @@ namespace FPTU_ProposalGuard.Application.Services;
 public class ProposalService : IProposalService
 {
     private readonly ILogger _logger;
-    private readonly CheckProposalSettings _appSettings;
+    private readonly AWSSettings _awsSettings;
+    private readonly CheckProposalSettings _checkProposalSettings;
     private readonly ISystemMessageService _msgService;
     private readonly IExtractService _extractService;
     private readonly IProjectProposalService<ProjectProposalDto> _projectService;
@@ -47,6 +50,7 @@ public class ProposalService : IProposalService
 
     public ProposalService(
         ILogger logger,
+        IOptionsMonitor<AWSSettings> awsSettings,
         IOptionsMonitor<CheckProposalSettings> checkProposalSettings,
         ISystemMessageService msgService,
         IExtractService extractService,
@@ -63,7 +67,8 @@ public class ProposalService : IProposalService
         IUserService<UserDto> userService)
     {
         _logger = logger;
-        _appSettings = checkProposalSettings.CurrentValue;
+        _awsSettings = awsSettings.CurrentValue;
+        _checkProposalSettings = checkProposalSettings.CurrentValue;
         _msgService = msgService;
         _extractService = extractService;
         _projectService = projectService;
@@ -78,13 +83,29 @@ public class ProposalService : IProposalService
         _roleService = roleService;
         _appConfig = appConfig.CurrentValue;
         // Khởi tạo OpenSearch client
-        var node = new Uri(_appSettings.OpenSearchUrl);
+        var node = new Uri(_awsSettings.OpenSearchUrl);
 
         var config = new ConnectionConfiguration(node)
-            .BasicAuthentication(_appSettings.OpenSearchUsername, _appSettings.OpenSearchPassword)
+            .BasicAuthentication(_awsSettings.OpenSearchUsername, _awsSettings.OpenSearchPassword)
             .ServerCertificateValidationCallback(CertificateValidations.AllowAll); // nếu cần bỏ qua SSL cert
 
+
+        // var region = RegionEndpoint.APSoutheast1; // thay bằng region của bạn (vd: ap-southeast-1)
+        // var credentials = new BasicAWSCredentials("YOUR_ACCESS_KEY", "YOUR_SECRET_KEY");
+        //
+        // // Endpoint OpenSearch (Domain endpoint, không phải ARN)
+        // var opensearchEndpoint = "https://your-domain.region.es.amazonaws.com";
+        //
+        // // Tạo AWS SigV4 connection
+        // var httpConnection = new AwsSigV4HttpConnection(credentials, region.SystemName);
+        //
+        // // Cấu hình connection
+        // var pool = new SingleNodeConnectionPool(new Uri(opensearchEndpoint));
+        // var config = new ConnectionSettings(pool, httpConnection);
+
         _openSearchClient = new OpenSearchLowLevelClient(config);
+
+
     }
 
     // public async Task<IServiceResult> AddProposalsWithFiles(List<IFormFile> files, int semesterId, string email,
@@ -390,7 +411,7 @@ public class ProposalService : IProposalService
 </div>";
                     // Progress send confirmation email
                     var emailMessageDto = new EmailMessageDto( // Define email message
-                        // Define Recipient
+                                                               // Define Recipient
                         to: new List<string>() { email },
                         // Define subject
                         subject: emailSubject,
@@ -835,7 +856,7 @@ public class ProposalService : IProposalService
                     var uploadedChunkText = documentEmbeddings[i][j].Text;
                     foreach (var match in chunkResults[j])
                     {
-                        if (match.Similarity < _appSettings.Threshold) continue;
+                        if (match.Similarity < _checkProposalSettings.Threshold) continue;
 
                         if (!proposalMatches.TryGetValue(match.ProposalId, out var list))
                         {
