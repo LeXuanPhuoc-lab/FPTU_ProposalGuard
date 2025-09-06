@@ -23,7 +23,7 @@ public class ProposalController(
 {
     private readonly AppSettings _appSettings = monitor.CurrentValue;
 
-    [Authorize]
+    [Authorize(Roles = $"{nameof(Role.Lecturer)},{nameof(Role.Moderator)}")]
     [HttpPost(APIRoute.Proposal.AddProposalsWithFiles, Name = nameof(AddProposalsWithFiles))]
     public async Task<IActionResult> AddProposalsWithFiles([FromForm] AddProposalsWithFilesRequest req)
     {
@@ -41,7 +41,7 @@ public class ProposalController(
     // }
 
 
-    [Authorize]
+    [Authorize(Roles = $"{nameof(Role.Lecturer)},{nameof(Role.Moderator)}")]
     [HttpPost(APIRoute.Proposal.CheckDuplicatedProposal, Name = nameof(CheckDuplicatedProposal))]
     public async Task<IActionResult> CheckDuplicatedProposal([FromForm] CheckDuplicatedProposalRequest req)
     {
@@ -56,7 +56,7 @@ public class ProposalController(
         return Ok(await proposalService.UpdateStatus(proposalId, isApproved, email));
     }
 
-    [Authorize]
+    [Authorize(Roles = $"{nameof(Role.Lecturer)},{nameof(Role.Moderator)}")]
     [HttpPost(APIRoute.Proposal.ReUploadProposal, Name = nameof(ReUploadProposal))]
     public async Task<IActionResult> ReUploadProposal([FromForm] ReUploadRequest req)
     {
@@ -64,7 +64,7 @@ public class ProposalController(
         return Ok(await proposalService.ReUploadProposal(req.ToTuple(), req.ProjectProposalId, email, req.SemesterId));
     }
 
-    [Authorize]
+    [Authorize(Roles = $"{nameof(Role.Lecturer)},{nameof(Role.Moderator)}")]
     [HttpGet(APIRoute.Proposal.GetFile, Name = nameof(GetFile))]
     public async Task<IActionResult> GetFile([FromRoute] int historyId)
     {
@@ -73,7 +73,7 @@ public class ProposalController(
         return File(result.Stream, result.ContentType, result.FileName);
     }
 
-    [Authorize]
+    [Authorize(Roles = $"{nameof(Role.Lecturer)},{nameof(Role.Moderator)}")]
     [HttpGet(APIRoute.Proposal.GetAll, Name = nameof(GetAll))]
     public async Task<IActionResult> GetAll([FromQuery] ProposalSpecParams specParams)
     {
@@ -85,7 +85,7 @@ public class ProposalController(
         return Ok(result);
     }
 
-    [Authorize]
+    [Authorize(Roles = $"{nameof(Role.Lecturer)},{nameof(Role.Moderator)}")]
     [HttpGet(APIRoute.Proposal.GetAllUploaded, Name = nameof(GetAllUploaded))]
     public async Task<IActionResult> GetAllUploaded([FromQuery] ProposalSpecParams specParams)
     {
@@ -99,14 +99,14 @@ public class ProposalController(
         return Ok(result);
     }
 
-    [Authorize]
+    [Authorize(Roles = $"{nameof(Role.Lecturer)},{nameof(Role.Moderator)}")]
     [HttpGet(APIRoute.Proposal.GetById, Name = nameof(GetById))]
     public async Task<IActionResult> GetById([FromRoute] int id)
     {
         return Ok(await projectProposalService.GetByIdAsync(id));
     }
 
-    [Authorize]
+    [Authorize(Roles = nameof(Role.Moderator))]
     [HttpGet(APIRoute.Proposal.ExportSemesterReport, Name = nameof(ExportSemesterReport))]
     public async Task<IActionResult> ExportSemesterReport([FromQuery] int? semesterId)
     {
@@ -116,18 +116,20 @@ public class ProposalController(
             : Ok(exportResult);
     }
 
+    [Authorize(Roles = nameof(Role.Moderator))]
     [HttpPost(APIRoute.Proposal.AddReviewers, Name = nameof(AddReviewers))]
     public async Task<IActionResult> AddReviewers([FromBody] AddReviewersRequest req)
     {
         return Ok(await proposalService.AddReviewers(req.Proposals.ToDictionary(p => p.ProposalId,
             p => p.ReviewerEmails)));
     }
-
+    
+    [Authorize(Roles = nameof(Role.Lecturer))]
     [HttpPost(APIRoute.Proposal.SubmitReview, Name = nameof(SubmitReview))]
     public async Task<IActionResult> SubmitReview([FromRoute] int id, [FromBody] SubmitReviewRequest req)
     {
         var email = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value!;
         return Ok(await proposalService.SubmitReview<ReviewSessionDto>(id
-            , req.ToDto(), email));
+            , req.ToDto() ,email));
     }
 }

@@ -9,11 +9,14 @@ using System.Text.Json;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.S3.Model;
+using FPTU_ProposalGuard.Application.Dtos;
 using FPTU_ProposalGuard.Application.Dtos.Proposals;
 using FPTU_ProposalGuard.Application.Dtos.Reviews;
 using FPTU_ProposalGuard.Application.Dtos.Semesters;
+using FPTU_ProposalGuard.Application.Dtos.SystemRoles;
 using FPTU_ProposalGuard.Application.Dtos.Users;
 using FPTU_ProposalGuard.Application.Services.IExternalServices;
+using FPTU_ProposalGuard.Application.Utils;
 using FPTU_ProposalGuard.Domain.Common.Enums;
 using FPTU_ProposalGuard.Domain.Entities;
 using FPTU_ProposalGuard.Domain.Interfaces;
@@ -41,6 +44,9 @@ public class ProposalService : IProposalService
     private readonly IS3Service _s3;
     private readonly ISemesterService<SemesterDto> _semesterService;
     private readonly IReviewSessionService<ReviewSessionDto> _reviewSessionService;
+    private readonly IEmailService _emailService;
+    private readonly ISystemRoleService<SystemRoleDto> _roleService;
+    private readonly AppSettings _appConfig;
 
     public ProposalService(
         ILogger logger,
@@ -55,6 +61,9 @@ public class ProposalService : IProposalService
         IS3Service s3,
         ISemesterService<SemesterDto> semesterService,
         IReviewSessionService<ReviewSessionDto> reviewSessionService,
+        IEmailService emailService,
+        ISystemRoleService<SystemRoleDto> roleService,
+        IOptionsMonitor<AppSettings> appConfig,
         IUserService<UserDto> userService)
     {
         _logger = logger;
@@ -70,6 +79,9 @@ public class ProposalService : IProposalService
         _s3 = s3;
         _semesterService = semesterService;
         _reviewSessionService = reviewSessionService;
+        _emailService = emailService;
+        _roleService = roleService;
+        _appConfig = appConfig.CurrentValue;
         // Khởi tạo OpenSearch client
         var node = new Uri(_awsSettings.OpenSearchUrl);
 
@@ -331,19 +343,115 @@ public class ProposalService : IProposalService
 
             var users = (userBaseSpec.Data as List<UserDto>)!;
             var userEmails = users.Select(x => x.Email).ToList();
-            var notExistedUser = userEmails.Where(x => !emails.Contains(x)).ToList();
+            var notExistedUser = emails.Where(x => !userEmails.Contains(x)).ToList();
 
             var existedUsers = users.Where(x => emails.Contains(x.Email)).ToList();
 
             #region Add new users
 
+            var getRoleSpec = new BaseSpecification<SystemRole>(x => x.RoleName == Role.Lecturer.ToString());
+            var roleResponse = await _roleService.GetWithSpecAsync(getRoleSpec);
+            if (roleResponse.ResultCode != ResultCodeConst.SYS_Success0002)
+            {
+                return roleResponse;
+            }
+
+            var role = (roleResponse.Data as SystemRoleDto)!;
+
             // add new users back to existed users
+            IDictionary<string, string> defaultPasswords = new Dictionary<string, string>();
+            List<UserDto> newUsers = new List<UserDto>();
+            List<EmailMessageDto> emailToSend = new List<EmailMessageDto>();
+
+            foreach (var email in notExistedUser)
+            {
+                var defaultPassword = HashUtils.GenerateRandomPassword();
+                var newUser = new UserDto
+                {
+                    UserId = Guid.NewGuid(),
+                    Email = email,
+                    PasswordHash = HashUtils.HashPassword(defaultPassword),
+                    RoleId = role.RoleId,
+                    EmailConfirmed = true,
+                    IsDeleted = false,
+                    TwoFactorEnabled = false,
+                    IsActive = true,
+                    CreateDate = DateTime.UtcNow
+                };
+                defaultPasswords.Add(email, defaultPassword);
+                newUsers.Add(newUser);
+            }
+
+            if (newUsers.Any())
+            {
+                var createUserResult = await _userService.CreateUnexistingUsersAsync(newUsers);
+                if (createUserResult.ResultCode != ResultCodeConst.SYS_Success0001)
+                {
+                    return createUserResult;
+                }
+
+                existedUsers.AddRange((createUserResult.Data as List<UserDto>)!);
+
+                // Send email to new users
+                var emailSubject = "[ProposalGuard] Account Proposal Reviewer";
+
+                foreach (var email in defaultPasswords.Keys)
+                {
+                    var emailContent = $@"
+<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>
+    <p>Vui lòng đăng nhập với tài khoản và mật khẩu dưới đây để tiến hành duyệt các đề tài được giao:</p>
+    <p><b>Tài khoản:</b> {email}</p>
+    <p><b>Mật khẩu:</b> {defaultPasswords[email]}</p>
+    <br />
+    <p>Ấn vào đường dẫn sau để truy cập vào trang đăng nhập:</p>
+    <p><a href='{_appConfig.HomeLink}' style='color: #1A73E8; text-decoration: none;'>Đăng nhập ProposalGuard</a></p>
+    <br />
+    <p>Cảm ơn,</p>
+    <p>ProposalGuard</p>
+</div>";
+                    // Progress send confirmation email
+                    var emailMessageDto = new EmailMessageDto( // Define email message
+                                                               // Define Recipient
+                        to: new List<string>() { email },
+                        // Define subject
+                        subject: emailSubject,
+                        // Add email body content
+                        content: emailContent
+                    );
+
+                    emailToSend.Add(emailMessageDto);
+                }
+            }
 
             #endregion
+
+            // List Reviewer that already added
+            IDictionary<int, List<string>> alreadyAddedReviewers = new Dictionary<int, List<string>>();
 
             List<(int, ProposalHistoryDto)> historyToUpdate = new List<(int, ProposalHistoryDto)>();
             foreach (var proposalId in proposalReviewers.Keys)
             {
+                var addedReviewers = await _userService.GetReviewerByProposal(proposalId);
+                if (addedReviewers.ResultCode == ResultCodeConst.SYS_Success0002)
+                {
+                    var addedReviewerData = (addedReviewers.Data as List<UserDto>)!;
+                    var matchedReviewers = addedReviewerData
+                        .IntersectBy(existedUsers.Select(x => x.Email), x => x.Email).ToList();
+                    alreadyAddedReviewers.Add(proposalId, matchedReviewers.Select(x => x.Email).ToList());
+                    // all reviewers are added, skip to next
+                    if (matchedReviewers.Count == proposalReviewers[proposalId].Count)
+                        continue;
+                    // filter to get new reviewers only
+                    proposalReviewers[proposalId] = proposalReviewers[proposalId]
+                        .Where(x => !matchedReviewers.Select(u => u.Email).Contains(x)).ToList();
+                }
+
+                // get user that is reviewer for proposal
+                var reviewerEmailsForProposal = proposalReviewers[proposalId];
+
+                var reviewersForProposal = existedUsers
+                    .Where(u => reviewerEmailsForProposal.Contains(u.Email))
+                    .ToList();
                 // get by id and latest version
                 var proposalHistory = await _historyService.GetLatestHistoryByProposalIdAsync(proposalId);
                 if (proposalHistory.ResultCode != ResultCodeConst.SYS_Success0002)
@@ -354,7 +462,7 @@ public class ProposalService : IProposalService
                 var latestHistory = (proposalHistory.Data as ProposalHistoryDto)!;
 
                 // create session
-                latestHistory!.ReviewSessions = existedUsers.Select(x =>
+                latestHistory!.ReviewSessions = reviewersForProposal.Select(x =>
                 {
                     return new ReviewSessionDto
                     {
@@ -369,11 +477,37 @@ public class ProposalService : IProposalService
                 historyToUpdate.Add((latestHistory.HistoryId, latestHistory));
             }
 
+            // check if all reviewers are already added
+            if (!historyToUpdate.Any())
+            {
+                return new ServiceResult(ResultCodeConst.Proposal_Warning0006,
+                    await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0006));
+            }
+
             // Update history
             var updateResult = await _historyService.AddReviewersAsync(historyToUpdate);
-            if (updateResult.ResultCode != ResultCodeConst.SYS_Success0001)
+            if (updateResult.ResultCode != ResultCodeConst.SYS_Success0003)
             {
                 return updateResult;
+            }
+
+            foreach (var emailMessageDto in emailToSend)
+            {
+                // Send email
+                await _emailService.SendEmailAsync(message: emailMessageDto, isBodyHtml: true);
+            }
+
+            if (alreadyAddedReviewers.Any())
+            {
+                var returnResponse = alreadyAddedReviewers.Select(er =>
+                    new ExistedReviewerDto
+                    {
+                        ProposalId = er.Key,
+                        ExistedEmails = er.Value.ToList()
+                    }).ToList();
+                return new ServiceResult(ResultCodeConst.Proposal_Success0004,
+                    await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Success0004),
+                    returnResponse);
             }
 
             return new ServiceResult(ResultCodeConst.Proposal_Success0003,
@@ -912,6 +1046,7 @@ public class ProposalService : IProposalService
             {
                 proposalStatus = ProjectProposalStatus.Pending.ToString();
             }
+
             // Update all
             var updateSessionResult = await _reviewSessionService.UpdateSubmitSession(sessionData.SessionId,
                 sessionData, proposalStatus);
