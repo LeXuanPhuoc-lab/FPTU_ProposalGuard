@@ -544,6 +544,11 @@ public class ProposalService : IProposalService
                     message: StringUtils.Format(await _msgService.GetMessageAsync(ResultCodeConst.SYS_Warning0002), "semester"));
             }
 
+            var proposalCode = (await _historyService.GenerateProposalCodeAsync(semester.SemesterId, semester.SemesterCode)).Data as string;
+            if (!string.IsNullOrEmpty(proposalCode)) return new ServiceResult(
+                resultCode: ResultCodeConst.SYS_Fail0001,
+                message: await _msgService.GetMessageAsync(ResultCodeConst.SYS_Fail0001));
+
             var proposalDtos = new List<ProjectProposalDto>();
 
             foreach (var (file, fileDetail) in files)
@@ -610,37 +615,11 @@ public class ProposalService : IProposalService
                     Tasks = JsonSerializer.Deserialize<List<string>>(extracted.Tasks)!
                 };
 
-                // Get semester Detail
-                //var semesterResponse = await _semesterService.GetByIdAsync(semesterId);
-                //if (semesterResponse.ResultCode != ResultCodeConst.SYS_Success0002)
-                //{
-                //    foreach (var key in uploadedFileKeys)
-                //    {
-                //        await _s3.DeleteFile(key);
-                //    }
-
-                //    return semesterResponse;
-                //}
-
-                var proposalCode = await _historyService.GenerateProposalCodeAsync(semester.SemesterId
-                    , semester.SemesterCode);
-                if (proposalCode.ResultCode != ResultCodeConst.SYS_Success0002)
-                {
-                    foreach (var key in uploadedFileKeys)
-                    {
-                        await _s3.DeleteFile(key);
-                    }
-
-                    return proposalCode;
-                }
-
-                string proposalCodeValue = (proposalCode.Data as string)!;
-
                 var history = fileDetail is ProposalHistoryDto dto
                     ? new ProposalHistoryDto
                     {
                         Status = dto.Status,
-                        ProposalCode = proposalCodeValue,
+                        ProposalCode = proposalCode,
                         Version = 1,
                         Url = fileKey,
                         ProcessById = user.UserId,
@@ -652,7 +631,7 @@ public class ProposalService : IProposalService
                     {
                         Status = ProjectProposalStatus.Pending.ToString(),
                         Version = 1,
-                        ProposalCode = proposalCodeValue,
+                        ProposalCode = proposalCode,
                         Url = fileKey,
                         ProcessById = user.UserId,
                         ProcessDate = DateTime.UtcNow

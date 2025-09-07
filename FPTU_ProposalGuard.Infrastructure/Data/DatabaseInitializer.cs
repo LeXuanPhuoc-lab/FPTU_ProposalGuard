@@ -196,7 +196,7 @@ public class DatabaseInitializer(FptuProposalGuardDbContext context, ILogger log
             {
                 Term = Term.Fall,
                 Year = 2025,
-                SemesterCode = "    "
+                SemesterCode = "FA25"
             }
         };
 
