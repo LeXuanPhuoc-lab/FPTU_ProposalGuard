@@ -26,6 +26,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenSearch.Net;
 using Serilog;
 using ProjectProposalDto = FPTU_ProposalGuard.Application.Dtos.Proposals.ProjectProposalDto;
+using Mapster;
 
 namespace FPTU_ProposalGuard.Application.Services;
 
@@ -335,36 +336,34 @@ public class ProposalService : IProposalService
             // var systemRole = (role.Data as SystemRoleDto)!;
 
             //Get users
-            List<string> emails = proposalReviewers.Values.SelectMany(list => list).ToList();
-            var userBaseSpec = await _userService.GetAllAsync();
-            if (userBaseSpec.ResultCode != ResultCodeConst.SYS_Success0002)
-            {
-                return userBaseSpec;
-            }
+            var existingUsers = (await _userService.GetAllWithSpecAndSelectorAsync(
+                specification: new BaseSpecification<User>(),
+                selector: u => new UserDto
+                {
+                    UserId = u.UserId,
+                    Email = u.Email
+                }, tracked: false)).Data as List<UserDto> ?? [];
 
-            var users = (userBaseSpec.Data as List<UserDto>)!;
-            var userEmails = users.Select(x => x.Email).ToList();
-            var notExistedUser = emails.Where(x => !userEmails.Contains(x)).ToList();
-
-            var existedUsers = users.Where(x => emails.Contains(x.Email)).ToList();
+            var emailsToReview = proposalReviewers.Values.SelectMany(l => l).Distinct().ToList();
+            var notExistEmails = emailsToReview.Except(existingUsers.Select(u => u.Email));
 
             #region Add new users
 
             var getRoleSpec = new BaseSpecification<SystemRole>(x => x.RoleName == Role.Lecturer.ToString());
-            var roleResponse = await _roleService.GetWithSpecAsync(getRoleSpec);
-            if (roleResponse.ResultCode != ResultCodeConst.SYS_Success0002)
+            var role = (await _roleService.GetWithSpecAsync(getRoleSpec)).Data as SystemRoleDto;
+            if(role == null)
             {
-                return roleResponse;
+                return new ServiceResult(
+                    resultCode: ResultCodeConst.SYS_Warning0002,
+                    message: await _msgService.GetMessageAsync(StringUtils.Format(ResultCodeConst.SYS_Warning0002, "role")));
             }
-
-            var role = (roleResponse.Data as SystemRoleDto)!;
 
             // add new users back to existed users
             IDictionary<string, string> defaultPasswords = new Dictionary<string, string>();
             List<UserDto> newUsers = new List<UserDto>();
             List<EmailMessageDto> emailToSend = new List<EmailMessageDto>();
 
-            foreach (var email in notExistedUser)
+            foreach (var email in notExistEmails)
             {
                 var defaultPassword = HashUtils.GenerateRandomPassword();
                 var newUser = new UserDto
@@ -385,13 +384,14 @@ public class ProposalService : IProposalService
 
             if (newUsers.Any())
             {
-                var createUserResult = await _userService.CreateUnexistingUsersAsync(newUsers);
-                if (createUserResult.ResultCode != ResultCodeConst.SYS_Success0001)
+                var createdUsers = (await _userService.CreateUnexistingUsersAsync(newUsers)).Data as List<UserDto>;
+                if (createdUsers == null || createdUsers.Count == 0)
                 {
-                    return createUserResult;
+                    return new ServiceResult(
+                        resultCode: ResultCodeConst.SYS_Fail0001,
+                        message: await _msgService.GetMessageAsync(ResultCodeConst.SYS_Fail0001));
                 }
-
-                existedUsers.AddRange((createUserResult.Data as List<UserDto>)!);
+                else existingUsers.AddRange(createdUsers);
 
                 // Send email to new users
                 var emailSubject = "[ProposalGuard] Account Proposal Reviewer";
@@ -399,20 +399,20 @@ public class ProposalService : IProposalService
                 foreach (var email in defaultPasswords.Keys)
                 {
                     var emailContent = $@"
-<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>
-    <p>Vui lòng đăng nhập với tài khoản và mật khẩu dưới đây để tiến hành duyệt các đề tài được giao:</p>
-    <p><b>Tài khoản:</b> {email}</p>
-    <p><b>Mật khẩu:</b> {defaultPasswords[email]}</p>
-    <br />
-    <p>Ấn vào đường dẫn sau để truy cập vào trang đăng nhập:</p>
-    <p><a href='{_appConfig.HomeLink}' style='color: #1A73E8; text-decoration: none;'>Đăng nhập ProposalGuard</a></p>
-    <br />
-    <p>Cảm ơn,</p>
-    <p>ProposalGuard</p>
-</div>";
+                        <div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>
+                            <p>Vui lòng đăng nhập với tài khoản và mật khẩu dưới đây để tiến hành duyệt các đề tài được giao:</p>
+                            <p><b>Tài khoản:</b> {email}</p>
+                            <p><b>Mật khẩu:</b> {defaultPasswords[email]}</p>
+                            <br />
+                            <p>Ấn vào đường dẫn sau để truy cập vào trang đăng nhập:</p>
+                            <p><a href='{_appConfig.HomeLink}' style='color: #1A73E8; text-decoration: none;'>Đăng nhập ProposalGuard</a></p>
+                            <br />
+                            <p>Cảm ơn,</p>
+                            <p>ProposalGuard</p>
+                        </div>";
+
                     // Progress send confirmation email
-                    var emailMessageDto = new EmailMessageDto( // Define email message
-                                                               // Define Recipient
+                    var emailMessageDto = new EmailMessageDto(
                         to: new List<string>() { email },
                         // Define subject
                         subject: emailSubject,
@@ -432,35 +432,34 @@ public class ProposalService : IProposalService
             List<(int, ProposalHistoryDto)> historyToUpdate = new List<(int, ProposalHistoryDto)>();
             foreach (var proposalId in proposalReviewers.Keys)
             {
-                var addedReviewers = await _userService.GetReviewerByProposal(proposalId);
-                if (addedReviewers.ResultCode == ResultCodeConst.SYS_Success0002)
+                var addedReviewers = (await _userService.GetReviewerByProposal(proposalId)).Data as List<UserDto>;
+                if (addedReviewers != null && addedReviewers.Count > 0)
                 {
-                    var addedReviewerData = (addedReviewers.Data as List<UserDto>)!;
-                    var matchedReviewers = addedReviewerData
-                        .IntersectBy(existedUsers.Select(x => x.Email), x => x.Email).ToList();
-                    alreadyAddedReviewers.Add(proposalId, matchedReviewers.Select(x => x.Email).ToList());
+                    var matchedReviewers = addedReviewers
+                        .IntersectBy(existingUsers.Select(x => x.Email), x => x.Email).ToList();
+                            alreadyAddedReviewers.Add(proposalId, matchedReviewers.Select(x => x.Email).ToList());
                     // all reviewers are added, skip to next
                     if (matchedReviewers.Count == proposalReviewers[proposalId].Count)
                         continue;
                     // filter to get new reviewers only
                     proposalReviewers[proposalId] = proposalReviewers[proposalId]
-                        .Where(x => !matchedReviewers.Select(u => u.Email).Contains(x)).ToList();
+                            .Where(x => !matchedReviewers.Select(u => u.Email).Contains(x)).ToList();
                 }
-
+                    
                 // get user that is reviewer for proposal
                 var reviewerEmailsForProposal = proposalReviewers[proposalId];
 
-                var reviewersForProposal = existedUsers
+                var reviewersForProposal = existingUsers
                     .Where(u => reviewerEmailsForProposal.Contains(u.Email))
                     .ToList();
                 // get by id and latest version
-                var proposalHistory = await _historyService.GetLatestHistoryByProposalIdAsync(proposalId);
-                if (proposalHistory.ResultCode != ResultCodeConst.SYS_Success0002)
+                var latestHistory = (await _historyService.GetLatestHistoryByProposalIdAsync(proposalId)).Data as ProposalHistoryDto;
+                if (latestHistory == null)
                 {
-                    return proposalHistory;
+                    return new ServiceResult(
+                        resultCode: ResultCodeConst.SYS_Warning0002,
+                        message: await _msgService.GetMessageAsync(StringUtils.Format(ResultCodeConst.SYS_Warning0002, "history")));
                 }
-
-                var latestHistory = (proposalHistory.Data as ProposalHistoryDto)!;
 
                 // create session
                 var existingReviewerIds = latestHistory.ReviewSessions.Select(r => r.ReviewerId).ToHashSet();
@@ -490,11 +489,12 @@ public class ProposalService : IProposalService
                     await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0006));
             }
 
-            // Update history
-            var updateResult = await _historyService.AddReviewersAsync(historyToUpdate);
-            if (updateResult.ResultCode != ResultCodeConst.SYS_Success0003)
+            // Update
+            var isUpdated = (await _historyService.AddReviewersAsync(historyToUpdate)).Data is true;
+            if (!isUpdated)
             {
-                return updateResult;
+                return new ServiceResult(ResultCodeConst.SYS_Fail0003,
+                    await _msgService.GetMessageAsync(ResultCodeConst.SYS_Fail0003));
             }
 
             foreach (var emailMessageDto in emailToSend)
