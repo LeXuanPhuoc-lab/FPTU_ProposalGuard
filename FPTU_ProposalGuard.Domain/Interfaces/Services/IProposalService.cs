@@ -15,6 +15,4 @@ public interface IProposalService
     Task<IServiceResult> GetFile(int historyId);
     Task<IServiceResult> AddReviewers(IDictionary<int, List<string>> proposalReviewers);
     Task<IServiceResult> SubmitReview<T>(int proposalId, T session, string email) where T : class;
-
-
 }

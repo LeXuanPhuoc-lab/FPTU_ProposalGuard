@@ -1671,7 +1671,7 @@ public class UserService : GenericService<User, UserDto, Guid>, IUserService<Use
     {
         try
         {
-            var roles = dtos.Select(x => x.RoleId).ToList();
+            var roles = dtos.Select(x => x.RoleId).Distinct().ToList();
             if (roles.Count > 1)
             {
                 return new ServiceResult(ResultCodeConst.Review_Warning0002,

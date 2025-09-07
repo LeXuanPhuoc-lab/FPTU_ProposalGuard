@@ -70,8 +70,10 @@ public class ProposalHistoryService(
             {
                 // Retrieve by id
                 var baseSpec = new BaseSpecification<ProposalHistory>(x => x.HistoryId == id);
-                baseSpec.ApplyInclude(q => q.Include(h => h.ProjectProposal)
-                    .ThenInclude(pp => pp.Approver)!);
+                baseSpec.ApplyInclude(q => q
+                    .Include(h => h.ReviewSessions)
+                    .Include(h => h.ProjectProposal)
+                        .ThenInclude(pp => pp.Approver)!);
                 var existingEntity = await _unitOfWork.Repository<ProposalHistory, int>().GetWithSpecAsync(baseSpec);
                 if (existingEntity == null)
                 {
@@ -81,7 +83,14 @@ public class ProposalHistoryService(
                         StringUtils.Format(errMsg, "lịch sử để tiến hành sửa đổi"));
                 }
 
-                existingEntity.ReviewSessions = _mapper.Map<List<ReviewSession>>(dto.ReviewSessions);
+                var toAddSessions = _mapper.Map<List<ReviewSession>>(dto.ReviewSessions);
+                foreach(var ss in toAddSessions)
+                {
+                    existingEntity.ReviewSessions.Add(ss);
+                }
+
+                //existingEntity.ReviewSessions = _mapper.Map<List<ReviewSession>>(dto.ReviewSessions);
+                
                 // Process update
                 await _history.UpdateAsync(existingEntity);
 
@@ -90,7 +99,7 @@ public class ProposalHistoryService(
                 {
                     // Mark as update success
                     return new ServiceResult(ResultCodeConst.SYS_Success0003,
-                        await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0003));
+                        await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0003), true);
                 }
             }
 
@@ -99,12 +108,12 @@ public class ProposalHistoryService(
             {
                 // Mark as update success
                 return new ServiceResult(ResultCodeConst.SYS_Success0003,
-                    await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0003));
+                    await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0003), true);
             }
 
             // Mark as failed to update
             return new ServiceResult(ResultCodeConst.SYS_Fail0003,
-                await _msgService.GetMessageAsync(ResultCodeConst.SYS_Fail0003));
+                await _msgService.GetMessageAsync(ResultCodeConst.SYS_Fail0003), false);
         }
         catch (Exception ex)
         {
@@ -220,6 +229,8 @@ public class ProposalHistoryService(
         try
         {
             var baseSpec = new BaseSpecification<ProposalHistory>(h => h.ProjectProposalId == proposalId);
+            baseSpec.ApplyInclude(q => q.Include(ph => ph.ReviewSessions));
+
             var latestHistory = (await _unitOfWork.Repository<ProposalHistory, int>()
                 .GetAllWithSpecAsync(baseSpec)).MaxBy(ph => ph.Version);
             if (latestHistory == null)

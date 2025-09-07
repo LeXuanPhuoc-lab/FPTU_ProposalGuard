@@ -131,6 +131,7 @@ public class ProjectProposalService(
                 .Ignore(dest => dest.ProposalHistories)
                 .Ignore(dest => dest.ProposalStudents)
                 .Ignore(dest => dest.ProposalSupervisors)
+                .Ignore(dest => dest.Semester)
                 .IgnoreNullValues(true);
             dto.Adapt(existingEntity, localConfig);
 
@@ -393,15 +394,14 @@ public class ProjectProposalService(
                 });
         }
 
-
         var proposalAggregateData = proposalEntities
             .SelectMany(p => p.ProposalHistories.Select(h => new
             {
-                p.Abbreviation,
+                h.ProposalCode,
                 h.Version,
                 Supervisors = string.Join(",", p.ProposalSupervisors?.Select(ps => ps.Email) ?? []),
                 Reviews = h.ReviewSessions.Select(rs => rs.ReviewStatus.ToString()).ToList(),
-                h.Comment
+                Comment = string.Join(", ", h.ReviewSessions.Select(r => r.Comment))
             }))
             .ToList();
 
@@ -428,7 +428,7 @@ public class ProjectProposalService(
             int row = 2;
             foreach (var proposal in proposalAggregateData)
             {
-                worksheet.Cell(row, 1).Value = proposal.Abbreviation + "_" + proposal.Version;
+                worksheet.Cell(row, 1).Value = proposal.ProposalCode;
                 worksheet.Cell(row, 2).Value = proposal.Supervisors;
                 for (int i = 0; i < proposal.Reviews.Count; i++)
                 {

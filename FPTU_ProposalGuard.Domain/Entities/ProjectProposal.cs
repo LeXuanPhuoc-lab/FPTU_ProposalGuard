@@ -6,7 +6,6 @@ namespace FPTU_ProposalGuard.Domain.Entities;
 public class ProjectProposal : IAuditableEntity
 {
     public int ProjectProposalId { get; set; }
-
     public int SemesterId { get; set; }
 
     public string? VieTitle { get; set; }
