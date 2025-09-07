@@ -6,6 +6,7 @@ using FPTU_ProposalGuard.Domain.Interfaces.Services.Base;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.S3.Model;
@@ -462,16 +463,21 @@ public class ProposalService : IProposalService
                 var latestHistory = (proposalHistory.Data as ProposalHistoryDto)!;
 
                 // create session
-                latestHistory!.ReviewSessions = reviewersForProposal.Select(x =>
+                var existingReviewerIds = latestHistory.ReviewSessions.Select(r => r.ReviewerId).ToHashSet();
+                // add new reviewers
+                foreach (var reviewer in reviewersForProposal)
                 {
-                    return new ReviewSessionDto
+                    if (!existingReviewerIds.Contains(reviewer.UserId))
                     {
-                        HistoryId = latestHistory.HistoryId,
-                        ReviewerId = x.UserId,
-                        ReviewStatus = ReviewStatus.Pending,
-                        ReviewDate = null
-                    };
-                }).ToList();
+                        latestHistory.ReviewSessions.Add(new ReviewSessionDto
+                        {
+                            HistoryId = latestHistory.HistoryId,
+                            ReviewerId = reviewer.UserId,
+                            ReviewStatus = ReviewStatus.Pending,
+                            ReviewDate = null
+                        });
+                    }
+                }
 
                 // add history to update
                 historyToUpdate.Add((latestHistory.HistoryId, latestHistory));
@@ -534,7 +540,36 @@ public class ProposalService : IProposalService
             var user = (userResponse.Data as UserDto)!;
 
             var proposalDtos = new List<ProjectProposalDto>();
+            // Get semester Detail
+            var semesterResponse = await _semesterService.GetByIdAsync(semesterId);
+            if (semesterResponse.ResultCode != ResultCodeConst.SYS_Success0002)
+            {
+                foreach (var key in uploadedFileKeys)
+                {
+                    await _s3.DeleteFile(key);
+                }
 
+                return semesterResponse;
+            }
+
+            var semester = (semesterResponse.Data as SemesterDto)!;
+
+            var proposalCode = await _historyService.GenerateProposalCodeAsync(semester.SemesterId
+                , semester.SemesterCode);
+            if (proposalCode.ResultCode != ResultCodeConst.SYS_Success0002)
+            {
+                foreach (var key in uploadedFileKeys)
+                {
+                    await _s3.DeleteFile(key);
+                }
+
+                return proposalCode;
+            }
+
+            string proposalCodeValue = (proposalCode.Data as string)!;
+            var match = Regex.Match(proposalCodeValue, $"{semester.SemesterCode}(\\d+)$");
+            int counter = match.Success ? int.Parse(match.Groups[1].Value) : 0;
+            
             foreach (var (file, fileDetail) in files)
             {
                 // Extract data from file
@@ -598,40 +633,12 @@ public class ProposalService : IProposalService
                     TechnicalStack = JsonSerializer.Deserialize<List<string>>(extracted.TechnicalStack)!,
                     Tasks = JsonSerializer.Deserialize<List<string>>(extracted.Tasks)!
                 };
-
-                // Get semester Detail
-                var semesterResponse = await _semesterService.GetByIdAsync(semesterId);
-                if (semesterResponse.ResultCode != ResultCodeConst.SYS_Success0002)
-                {
-                    foreach (var key in uploadedFileKeys)
-                    {
-                        await _s3.DeleteFile(key);
-                    }
-
-                    return semesterResponse;
-                }
-
-                var semester = (semesterResponse.Data as SemesterDto)!;
-
-                var proposalCode = await _historyService.GenerateProposalCodeAsync(semester.SemesterId
-                    , semester.SemesterCode);
-                if (proposalCode.ResultCode != ResultCodeConst.SYS_Success0002)
-                {
-                    foreach (var key in uploadedFileKeys)
-                    {
-                        await _s3.DeleteFile(key);
-                    }
-
-                    return proposalCode;
-                }
-
-                string proposalCodeValue = (proposalCode.Data as string)!;
-
+                var currentProposalCode = $"{semester.SemesterCode}{counter:D3}";
                 var history = fileDetail is ProposalHistoryDto dto
                     ? new ProposalHistoryDto
                     {
                         Status = dto.Status,
-                        ProposalCode = proposalCodeValue,
+                        ProposalCode = currentProposalCode,
                         Version = 1,
                         Url = fileKey,
                         ProcessById = user.UserId,
@@ -643,12 +650,12 @@ public class ProposalService : IProposalService
                     {
                         Status = ProjectProposalStatus.Pending.ToString(),
                         Version = 1,
-                        ProposalCode = proposalCodeValue,
+                        ProposalCode = currentProposalCode,
                         Url = fileKey,
                         ProcessById = user.UserId,
                         ProcessDate = DateTime.UtcNow
                     };
-
+                counter++;
                 proposal.ProposalHistories.Add(history);
                 proposalDtos.Add(proposal);
             }

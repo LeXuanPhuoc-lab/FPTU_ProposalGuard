@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using FPTU_ProposalGuard.Application.Common;
 using FPTU_ProposalGuard.Application.Dtos.Proposals;
+using FPTU_ProposalGuard.Application.Dtos.Reviews;
 using FPTU_ProposalGuard.Application.Exceptions;
 using FPTU_ProposalGuard.Application.Utils;
 using FPTU_ProposalGuard.Domain;
@@ -81,7 +82,29 @@ public class ProposalHistoryService(
                         StringUtils.Format(errMsg, "lịch sử để tiến hành sửa đổi"));
                 }
 
-                existingEntity.ReviewSessions = _mapper.Map<List<ReviewSession>>(dto.ReviewSessions);
+                var localConfig = new TypeAdapterConfig();
+                localConfig.NewConfig<ReviewSessionDto, ReviewSession>()
+                    .Ignore(dest => dest.Reviewer) 
+                    .Ignore(dest => dest.History);  
+
+                existingEntity.ReviewSessions ??= new List<ReviewSession>();
+
+                var existingReviewerIds = existingEntity.ReviewSessions.Select(r => r.ReviewerId).ToHashSet();
+                
+                var mappedSessions = dto.ReviewSessions.Adapt<List<ReviewSession>>(localConfig);
+                foreach (var newSession in mappedSessions)
+                {
+                    if (!existingReviewerIds.Contains(newSession.ReviewerId))
+                    {
+                        existingEntity.ReviewSessions.Add(new ReviewSession
+                        {
+                            HistoryId = existingEntity.HistoryId,
+                            ReviewerId = newSession.ReviewerId,
+                            ReviewStatus = newSession.ReviewStatus,
+                            ReviewDate = newSession.ReviewDate
+                        });
+                    }
+                }
                 // Process update
                 await _history.UpdateAsync(existingEntity);
 
