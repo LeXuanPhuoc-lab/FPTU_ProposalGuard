@@ -798,20 +798,28 @@ public class ProposalService : IProposalService
             var latestVersion = projectProposal.ProposalHistories
                 .Max(h => h.Version);
 
-            using var md5 = MD5.Create();
-            using var stream = file.file.OpenReadStream();
-            string hash = BitConverter.ToString(md5.ComputeHash(stream));
-            stream.Seek(0, SeekOrigin.Begin);
-            if (existedMd5.Contains(hash))
+            await using var originalStream = file.file.OpenReadStream();
+            using var ms = new MemoryStream();
+            await originalStream.CopyToAsync(ms);
+            ms.Position = 0;
+            string hash;
+            using (var md5 = MD5.Create())
             {
-                return new ServiceResult(ResultCodeConst.Proposal_Warning0007,
-                    await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0007));
+                hash = BitConverter.ToString(md5.ComputeHash(ms.ToArray()));
+                if (existedMd5!.Contains(hash))
+                {
+                    return new ServiceResult(ResultCodeConst.Proposal_Warning0007,
+                        await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0007));
+                }
             }
 
+            ms.Position = 0;
             var extracted = await _extractService.ExtractFullContentDocument(file.file);
+            
             // Upload to S3
+            ms.Position = 0;
             var fileKey = $"{Guid.NewGuid()}_{file.file.FileName}_{latestVersion + 1}";
-            await _s3.UploadFile(stream, fileKey, file.file.ContentType);
+            await _s3.UploadFile(ms, fileKey, file.file.ContentType);
             uploadKey = fileKey;
             projectProposal.VieTitle = extracted.VieTitle;
             projectProposal.EngTitle = extracted.EngTitle;
