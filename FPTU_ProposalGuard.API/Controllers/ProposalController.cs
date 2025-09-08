@@ -58,10 +58,10 @@ public class ProposalController(
 
     [Authorize(Roles = $"{nameof(Role.Lecturer)},{nameof(Role.Moderator)}")]
     [HttpPost(APIRoute.Proposal.ReUploadProposal, Name = nameof(ReUploadProposal))]
-    public async Task<IActionResult> ReUploadProposal([FromForm] ReUploadRequest req)
+    public async Task<IActionResult> ReUploadProposal([FromForm] ReUploadRequest req,[FromRoute]int proposalId)
     {
         var email = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value!;
-        return Ok(await proposalService.ReUploadProposal(req.ToTuple(), req.ProjectProposalId, email, req.SemesterId));
+        return Ok(await proposalService.ReUploadProposal(req.ToTuple(), proposalId, email));
     }
 
     [Authorize(Roles = $"{nameof(Role.Lecturer)},{nameof(Role.Moderator)}")]

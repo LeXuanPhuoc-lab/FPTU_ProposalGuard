@@ -138,15 +138,15 @@ public static class PayloadExtensions
     
     public static (IFormFile files, ProposalHistoryDto) ToTuple(this ReUploadRequest req)
     {
-        var file = req.CheckedFileFile.File;
+        var file = req.CheckedFile.File;
         var history = new ProposalHistoryDto()
         {
             Status = ProjectProposalStatus.Pending.ToString(),
             // Version = 1,
             Comment = null,
-            SimilarProposals = req.CheckedFileFile.SimilarityDetails is
+            SimilarProposals = req.CheckedFile.SimilarityDetails is
                 { Count: > 0 }
-                ? req.CheckedFileFile.SimilarityDetails!.Select(similarity =>
+                ? req.CheckedFile.SimilarityDetails!.Select(similarity =>
                 {
                     var similarityDetail = new ProposalSimilarityDto()
                     {

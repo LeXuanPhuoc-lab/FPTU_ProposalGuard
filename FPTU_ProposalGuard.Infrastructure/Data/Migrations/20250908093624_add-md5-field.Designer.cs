@@ -4,16 +4,19 @@ using FPTU_ProposalGuard.Infrastructure.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace FPTU_ProposalGuard.Infrastructure.Data.Migrations
+namespace FPTU_ProposalGuard.Infrastructure.Migrations
 {
     [DbContext(typeof(FptuProposalGuardDbContext))]
-    partial class FptuProposalGuardDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250908093624_add-md5-field")]
+    partial class addmd5field
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

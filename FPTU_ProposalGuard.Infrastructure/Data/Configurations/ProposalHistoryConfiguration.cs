@@ -19,6 +19,9 @@ public class ProposalHistoryConfiguration : IEntityTypeConfiguration<ProposalHis
         builder.Property(e => e.Status)
             .HasMaxLength(50)
             .HasColumnName("status");
+        builder.Property(e => e.MD5Hash)
+            .HasMaxLength(255)
+            .HasColumnName("md5_hash");
 
         builder.Property(e => e.Version).HasColumnName("version");
         builder.Property(e => e.ProposalCode)

@@ -15,9 +15,7 @@ public class CheckedFile
 
 public class ReUploadRequest
 {
-    public CheckedFile CheckedFileFile {get; set; } = null!;
-    public int ProjectProposalId { get; set; }
-    public int SemesterId { get; set; }
+    public CheckedFile CheckedFile {get; set; } = null!;
 }
 
 public class SimilarityDetail

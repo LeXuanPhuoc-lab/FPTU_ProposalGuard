@@ -348,6 +348,25 @@ public class ProposalHistoryService(
         return serviceResult;
     }
 
+    public async Task<IServiceResult> GetAllMd5Hashes()
+    {
+        try
+        {
+            var allHistories = await _unitOfWork.Repository<ProposalHistory, int>().GetAllAsync();
+            var md5Hashes = allHistories
+                .Where(h => !string.IsNullOrEmpty(h.MD5Hash))
+                .Select(h => h.MD5Hash!)
+                .ToList();
+            return new ServiceResult(ResultCodeConst.SYS_Success0002,
+                await _msgService.GetMessageAsync(ResultCodeConst.SYS_Success0002), md5Hashes);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex.Message);
+            throw new Exception("Error invoke when process get all md5 hashes");
+        }
+     }
+
     private string GenerateProposalCode(List<string> codes, string semesterCode, int? version)
     {
         if (codes is null || codes.Count == 0)

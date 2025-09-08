@@ -285,6 +285,10 @@ public class ResultCodeConst
     /// </summary>
     public static string Proposal_Success0004 = "Proposal.Success0004";
     /// <summary>
+    /// [SUCCESS] Add new proposal successfully but some are duplicated.
+    /// </summary>
+    public static string Proposal_Success0005 = "Proposal.Success0005";
+    /// <summary>
     /// [WARNING] Something went wrong while processing the file
     /// </summary>
     public static string Proposal_Warning0001 = "Proposal.Warning0001";
@@ -308,6 +312,14 @@ public class ResultCodeConst
     /// [WARNING] All reviewers are already added
     /// </summary>
     public static string Proposal_Warning0006 = "Proposal.Warning0006";
+    /// <summary>
+    /// [WARNING] Cannot upload file because it is duplicated
+    /// </summary>
+    public static string Proposal_Warning0007 = "Proposal.Warning0007";
+    /// <summary>
+    /// [WARNING] All chosen proposals have been added before
+    /// </summary>
+    public static string Proposal_Warning0008 = "Proposal.Warning0008";
     #endregion
 
     #region ProposalStudent
@@ -331,5 +343,9 @@ public class ResultCodeConst
     /// [Warning] Reviewers do not have the same role 
     /// </summary>
     public static string Review_Warning0002 = "Review.Warning0002";
+    /// <summary>
+    /// [Warning] Reviewers could not be added when the proposal is not in Pending status
+    /// </summary>
+    public static string Review_Warning0003 = "Review.Warning0003";
     #endregion
 }
