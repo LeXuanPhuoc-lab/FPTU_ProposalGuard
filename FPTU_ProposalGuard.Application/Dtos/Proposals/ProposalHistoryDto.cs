@@ -15,6 +15,7 @@ public class ProposalHistoryDto
     public string ProposalCode { get; set; } = null!;
     public string Url { get; set; } = null!;
     public Guid ProcessById { get; set; }
+    public string MD5Hash { get; set; } = null!;
 
     public DateTime ProcessDate { get; set; }
 

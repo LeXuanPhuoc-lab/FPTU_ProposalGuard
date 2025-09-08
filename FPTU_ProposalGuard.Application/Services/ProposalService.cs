@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using FPTU_ProposalGuard.Application.Common;
 using FPTU_ProposalGuard.Application.Configurations;
@@ -106,8 +107,6 @@ public class ProposalService : IProposalService
         // var config = new ConnectionSettings(pool, httpConnection);
 
         _openSearchClient = new OpenSearchLowLevelClient(config);
-
-
     }
 
     // public async Task<IServiceResult> AddProposalsWithFiles(List<IFormFile> files, int semesterId, string email,
@@ -351,11 +350,12 @@ public class ProposalService : IProposalService
 
             var getRoleSpec = new BaseSpecification<SystemRole>(x => x.RoleName == Role.Lecturer.ToString());
             var role = (await _roleService.GetWithSpecAsync(getRoleSpec)).Data as SystemRoleDto;
-            if(role == null)
+            if (role == null)
             {
                 return new ServiceResult(
                     resultCode: ResultCodeConst.SYS_Warning0002,
-                    message: await _msgService.GetMessageAsync(StringUtils.Format(ResultCodeConst.SYS_Warning0002, "role")));
+                    message: await _msgService.GetMessageAsync(StringUtils.Format(ResultCodeConst.SYS_Warning0002,
+                        "role")));
             }
 
             // add new users back to existed users
@@ -437,15 +437,15 @@ public class ProposalService : IProposalService
                 {
                     var matchedReviewers = addedReviewers
                         .IntersectBy(existingUsers.Select(x => x.Email), x => x.Email).ToList();
-                            alreadyAddedReviewers.Add(proposalId, matchedReviewers.Select(x => x.Email).ToList());
+                    alreadyAddedReviewers.Add(proposalId, matchedReviewers.Select(x => x.Email).ToList());
                     // all reviewers are added, skip to next
                     if (matchedReviewers.Count == proposalReviewers[proposalId].Count)
                         continue;
                     // filter to get new reviewers only
                     proposalReviewers[proposalId] = proposalReviewers[proposalId]
-                            .Where(x => !matchedReviewers.Select(u => u.Email).Contains(x)).ToList();
+                        .Where(x => !matchedReviewers.Select(u => u.Email).Contains(x)).ToList();
                 }
-                    
+
                 // get user that is reviewer for proposal
                 var reviewerEmailsForProposal = proposalReviewers[proposalId];
 
@@ -453,12 +453,20 @@ public class ProposalService : IProposalService
                     .Where(u => reviewerEmailsForProposal.Contains(u.Email))
                     .ToList();
                 // get by id and latest version
-                var latestHistory = (await _historyService.GetLatestHistoryByProposalIdAsync(proposalId)).Data as ProposalHistoryDto;
+                var latestHistory =
+                    (await _historyService.GetLatestHistoryByProposalIdAsync(proposalId)).Data as ProposalHistoryDto;
                 if (latestHistory == null)
                 {
                     return new ServiceResult(
                         resultCode: ResultCodeConst.SYS_Warning0002,
-                        message: await _msgService.GetMessageAsync(StringUtils.Format(ResultCodeConst.SYS_Warning0002, "history")));
+                        message: await _msgService.GetMessageAsync(StringUtils.Format(ResultCodeConst.SYS_Warning0002,
+                            "history")));
+                }
+
+                if (latestHistory.Status != ReviewStatus.Pending.ToString())
+                {
+                    return new ServiceResult(ResultCodeConst.Review_Warning0003,
+                        await _msgService.GetMessageAsync(ResultCodeConst.Review_Warning0003));
                 }
 
                 // create session
@@ -531,6 +539,52 @@ public class ProposalService : IProposalService
         int semesterId, string email) where T : class
     {
         var uploadedFileKeys = new List<string>();
+        var duplicatedFileWithDatabase = new List<string>();
+        var duplicatedFileInRequest = new List<string>();
+
+        // Cal Md5 for every files
+        var fileWithHashes = files.Select(f =>
+        {
+            using var md5 = MD5.Create();
+            using var stream = f.file.OpenReadStream();
+            var hash = BitConverter.ToString(md5.ComputeHash(stream));
+            stream.Seek(0, SeekOrigin.Begin);
+            return new
+            {
+                Hash = hash,
+                f.file,
+                f.fileDetail
+            };
+        }).ToList();
+
+        // Same hash in request
+        var uniqueFileMap = new Dictionary<string, (IFormFile file, T fileDetail)>();
+        foreach (var group in fileWithHashes.GroupBy(x => x.Hash))
+        {
+            var first = group.First();
+            uniqueFileMap[first.Hash] = (first.file, first.fileDetail);
+
+            if (group.Count() > 1)
+            {
+                duplicatedFileInRequest.AddRange(group.Skip(1).Select(x => x.file.FileName));
+            }
+        }
+
+        // Get all history hash
+        var md5Hashes = await _historyService.GetAllMd5Hashes();
+        if (md5Hashes.ResultCode != ResultCodeConst.SYS_Success0002)
+            return md5Hashes;
+
+        var existedMd5 = (md5Hashes.Data as List<string>) ?? new List<string>();
+        duplicatedFileWithDatabase.AddRange(uniqueFileMap.Keys.Intersect(existedMd5));
+
+        // Get the unique files that are not duplicated in request and database
+        var uniqueFiles = uniqueFileMap
+            .Where(kv => !existedMd5.Contains(kv.Key))
+            .Select(kv => (kv.Value.file, kv.Value.fileDetail, Hash: kv.Key))
+            .ToList();
+
+
         try
         {
             var userResponse = await _userService.GetCurrentUserAsync(email);
@@ -569,15 +623,16 @@ public class ProposalService : IProposalService
             string proposalCodeValue = (proposalCode.Data as string)!;
             var match = Regex.Match(proposalCodeValue, $"{semester.SemesterCode}(\\d+)$");
             int counter = match.Success ? int.Parse(match.Groups[1].Value) : 0;
-            
-            foreach (var (file, fileDetail) in files)
+
+
+            foreach (var (file, fileDetail, hash) in uniqueFiles)
             {
                 // Extract data from file
                 var extracted = await _extractService.ExtractFullContentDocument(file);
-
+                
                 // Upload to S3
-                var stream = file.OpenReadStream();
                 var fileKey = $"{Guid.NewGuid()}_{file.FileName}_1";
+                using var stream = file.OpenReadStream();
                 await _s3.UploadFile(stream, fileKey, file.ContentType);
                 uploadedFileKeys.Add(fileKey);
                 var students = JsonSerializer.Deserialize<List<ExtractedProposalStudentDto>>(extracted.Students,
@@ -644,7 +699,8 @@ public class ProposalService : IProposalService
                         ProcessById = user.UserId,
                         ProcessDate = DateTime.UtcNow,
                         Comment = dto.Comment,
-                        SimilarProposals = dto.SimilarProposals
+                        SimilarProposals = dto.SimilarProposals,
+                        MD5Hash = hash
                     }
                     : new ProposalHistoryDto
                     {
@@ -653,25 +709,44 @@ public class ProposalService : IProposalService
                         ProposalCode = currentProposalCode,
                         Url = fileKey,
                         ProcessById = user.UserId,
-                        ProcessDate = DateTime.UtcNow
+                        ProcessDate = DateTime.UtcNow,
+                        MD5Hash = hash
                     };
                 counter++;
                 proposal.ProposalHistories.Add(history);
                 proposalDtos.Add(proposal);
             }
 
-            // Create Proposal
-            var createResult = await _projectService.CreateManyAsync(proposalDtos);
-            if (createResult.ResultCode != ResultCodeConst.SYS_Success0001)
+            if (proposalDtos.Any())
             {
-                foreach (var key in uploadedFileKeys)
+                // Create Proposal
+                var createResult = await _projectService.CreateManyAsync(proposalDtos);
+                if (createResult.ResultCode != ResultCodeConst.SYS_Success0001)
                 {
-                    await _s3.DeleteFile(key);
+                    foreach (var key in uploadedFileKeys)
+                    {
+                        await _s3.DeleteFile(key);
+                    }
+
+                    return createResult;
                 }
-
-                return createResult;
+                if (duplicatedFileWithDatabase.Any() || duplicatedFileInRequest.Any())
+                {
+                    duplicatedFileWithDatabase.AddRange(duplicatedFileInRequest);
+                    return new ServiceResult(ResultCodeConst.Proposal_Success0005,
+                        await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Success0005),
+                        new DuplicatedFileDto()
+                        {
+                            DuplicatedFileNames = duplicatedFileWithDatabase
+                        });
+                }
             }
-
+            else
+            {
+                return new ServiceResult(ResultCodeConst.Proposal_Warning0008,
+                    await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0008));
+            }
+            
             return new ServiceResult(ResultCodeConst.Proposal_Success0002,
                 await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Success0002));
         }
@@ -688,11 +763,17 @@ public class ProposalService : IProposalService
     }
 
     public async Task<IServiceResult> ReUploadProposal<T>((IFormFile file, T fileDetail) file, int proposalId,
-        string email, int semesterId) where T : class
+        string email) where T : class
     {
         string uploadKey = string.Empty;
+
         try
         {
+            //get all existed md5
+            var md5Hashes = await _historyService.GetAllMd5Hashes();
+            if (md5Hashes.ResultCode != ResultCodeConst.SYS_Success0002)
+                return md5Hashes;
+            var existedMd5 = (md5Hashes.Data as List<string>);
             var userResponse = await _userService.GetCurrentUserAsync(email);
             if (userResponse.ResultCode != ResultCodeConst.SYS_Success0002)
                 return userResponse;
@@ -717,14 +798,21 @@ public class ProposalService : IProposalService
             var latestVersion = projectProposal.ProposalHistories
                 .Max(h => h.Version);
 
+            using var md5 = MD5.Create();
+            using var stream = file.file.OpenReadStream();
+            string hash = BitConverter.ToString(md5.ComputeHash(stream));
+            stream.Seek(0, SeekOrigin.Begin);
+            if (existedMd5.Contains(hash))
+            {
+                return new ServiceResult(ResultCodeConst.Proposal_Warning0007,
+                    await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0007));
+            }
+
             var extracted = await _extractService.ExtractFullContentDocument(file.file);
             // Upload to S3
-            var stream = file.file.OpenReadStream();
             var fileKey = $"{Guid.NewGuid()}_{file.file.FileName}_{latestVersion + 1}";
             await _s3.UploadFile(stream, fileKey, file.file.ContentType);
             uploadKey = fileKey;
-
-            projectProposal.SemesterId = semesterId;
             projectProposal.VieTitle = extracted.VieTitle;
             projectProposal.EngTitle = extracted.EngTitle;
             projectProposal.ContextText = extracted.Context;
@@ -773,7 +861,7 @@ public class ProposalService : IProposalService
             // Reupload Student details
             await _studentService.ModifyManyAsync(studentTask, proposalId);
 
-            var semesterResponse = await _semesterService.GetByIdAsync(semesterId);
+            var semesterResponse = await _semesterService.GetByIdAsync(projectProposal.SemesterId);
             if (semesterResponse.ResultCode != ResultCodeConst.SYS_Success0002)
             {
                 await _s3.DeleteFile(uploadKey);
@@ -803,7 +891,8 @@ public class ProposalService : IProposalService
                     ProcessDate = DateTime.UtcNow,
                     Comment = dto.Comment,
                     SimilarProposals = dto.SimilarProposals,
-                    ProjectProposalId = proposalId
+                    ProjectProposalId = proposalId,
+                    MD5Hash = hash
                 }
                 : new ProposalHistoryDto
                 {
@@ -813,7 +902,8 @@ public class ProposalService : IProposalService
                     ProposalCode = proposalCodeValue,
                     ProcessById = user.UserId,
                     ProcessDate = DateTime.UtcNow,
-                    ProjectProposalId = proposalId
+                    ProjectProposalId = proposalId,
+                    MD5Hash = hash
                 };
 
             await _historyService.CreateWithoutSaveAsync(history);
