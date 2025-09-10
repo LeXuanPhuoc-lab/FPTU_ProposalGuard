@@ -391,7 +391,7 @@ public class ProposalService : IProposalService
                         resultCode: ResultCodeConst.SYS_Fail0001,
                         message: await _msgService.GetMessageAsync(ResultCodeConst.SYS_Fail0001));
                 }
-                else existingUsers.AddRange(createdUsers);
+                else emailsToReview.AddRange(createdUsers.Select(u => u.Email));
 
                 // Send email to new users
                 var emailSubject = "[ProposalGuard] Account Proposal Reviewer";
@@ -435,15 +435,15 @@ public class ProposalService : IProposalService
                 var addedReviewers = (await _userService.GetReviewerByProposal(proposalId)).Data as List<UserDto>;
                 if (addedReviewers != null && addedReviewers.Count > 0)
                 {
-                    var matchedReviewers = addedReviewers
-                        .IntersectBy(existingUsers.Select(x => x.Email), x => x.Email).ToList();
-                    alreadyAddedReviewers.Add(proposalId, matchedReviewers.Select(x => x.Email).ToList());
+                    var matchedReviewers = addedReviewers.Select(x => x.Email)
+                        .Intersect(emailsToReview).ToList();
+                    alreadyAddedReviewers.Add(proposalId, matchedReviewers);
                     // all reviewers are added, skip to next
                     if (matchedReviewers.Count == proposalReviewers[proposalId].Count)
                         continue;
                     // filter to get new reviewers only
                     proposalReviewers[proposalId] = proposalReviewers[proposalId]
-                        .Where(x => !matchedReviewers.Select(u => u.Email).Contains(x)).ToList();
+                        .Where(x => !matchedReviewers.Contains(x)).ToList();
                 }
 
                 // get user that is reviewer for proposal
@@ -798,20 +798,28 @@ public class ProposalService : IProposalService
             var latestVersion = projectProposal.ProposalHistories
                 .Max(h => h.Version);
 
-            using var md5 = MD5.Create();
-            using var stream = file.file.OpenReadStream();
-            string hash = BitConverter.ToString(md5.ComputeHash(stream));
-            stream.Seek(0, SeekOrigin.Begin);
-            if (existedMd5.Contains(hash))
+            await using var originalStream = file.file.OpenReadStream();
+            using var ms = new MemoryStream();
+            await originalStream.CopyToAsync(ms);
+            ms.Position = 0;
+            string hash;
+            using (var md5 = MD5.Create())
             {
-                return new ServiceResult(ResultCodeConst.Proposal_Warning0007,
-                    await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0007));
+                hash = BitConverter.ToString(md5.ComputeHash(ms.ToArray()));
+                if (existedMd5!.Contains(hash))
+                {
+                    return new ServiceResult(ResultCodeConst.Proposal_Warning0007,
+                        await _msgService.GetMessageAsync(ResultCodeConst.Proposal_Warning0007));
+                }
             }
 
+            ms.Position = 0;
             var extracted = await _extractService.ExtractFullContentDocument(file.file);
+            
             // Upload to S3
+            ms.Position = 0;
             var fileKey = $"{Guid.NewGuid()}_{file.file.FileName}_{latestVersion + 1}";
-            await _s3.UploadFile(stream, fileKey, file.file.ContentType);
+            await _s3.UploadFile(ms, fileKey, file.file.ContentType);
             uploadKey = fileKey;
             projectProposal.VieTitle = extracted.VieTitle;
             projectProposal.EngTitle = extracted.EngTitle;
