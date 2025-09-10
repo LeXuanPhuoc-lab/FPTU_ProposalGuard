@@ -391,7 +391,7 @@ public class ProposalService : IProposalService
                         resultCode: ResultCodeConst.SYS_Fail0001,
                         message: await _msgService.GetMessageAsync(ResultCodeConst.SYS_Fail0001));
                 }
-                else existingUsers.AddRange(createdUsers);
+                else emailsToReview.AddRange(createdUsers.Select(u => u.Email));
 
                 // Send email to new users
                 var emailSubject = "[ProposalGuard] Account Proposal Reviewer";
@@ -435,15 +435,15 @@ public class ProposalService : IProposalService
                 var addedReviewers = (await _userService.GetReviewerByProposal(proposalId)).Data as List<UserDto>;
                 if (addedReviewers != null && addedReviewers.Count > 0)
                 {
-                    var matchedReviewers = addedReviewers
-                        .IntersectBy(existingUsers.Select(x => x.Email), x => x.Email).ToList();
-                    alreadyAddedReviewers.Add(proposalId, matchedReviewers.Select(x => x.Email).ToList());
+                    var matchedReviewers = addedReviewers.Select(x => x.Email)
+                        .Intersect(emailsToReview).ToList();
+                    alreadyAddedReviewers.Add(proposalId, matchedReviewers);
                     // all reviewers are added, skip to next
                     if (matchedReviewers.Count == proposalReviewers[proposalId].Count)
                         continue;
                     // filter to get new reviewers only
                     proposalReviewers[proposalId] = proposalReviewers[proposalId]
-                        .Where(x => !matchedReviewers.Select(u => u.Email).Contains(x)).ToList();
+                        .Where(x => !matchedReviewers.Contains(x)).ToList();
                 }
 
                 // get user that is reviewer for proposal
