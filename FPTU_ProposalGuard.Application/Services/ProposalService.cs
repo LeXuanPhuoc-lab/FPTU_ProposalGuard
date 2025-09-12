@@ -391,7 +391,7 @@ public class ProposalService : IProposalService
                         resultCode: ResultCodeConst.SYS_Fail0001,
                         message: await _msgService.GetMessageAsync(ResultCodeConst.SYS_Fail0001));
                 }
-                else emailsToReview.AddRange(createdUsers.Select(u => u.Email));
+                else existingUsers.AddRange(createdUsers);
 
                 // Send email to new users
                 var emailSubject = "[ProposalGuard] Account Proposal Reviewer";
@@ -815,7 +815,7 @@ public class ProposalService : IProposalService
 
             ms.Position = 0;
             var extracted = await _extractService.ExtractFullContentDocument(file.file);
-            
+
             // Upload to S3
             ms.Position = 0;
             var fileKey = $"{Guid.NewGuid()}_{file.file.FileName}_{latestVersion + 1}";
@@ -856,18 +856,24 @@ public class ProposalService : IProposalService
                 }).ToList() ?? new List<ProposalStudentDto>();
 
             // sync students
-            var studentTask = GetSyncPlan<ProposalStudentDto>(
-                dtoList: projectProposal.ProposalStudents!.ToList(),
-                extractedList: extractedStudents,
-                keySelector: s => s.StudentCode!,
-                isDifferent: (a, b) =>
-                    a.FullName != b.FullName ||
-                    a.Email != b.Email ||
-                    a.Phone != b.Phone
-            );
+            if (extractedStudents.Any() && extractedStudents.Any(e => !string.IsNullOrWhiteSpace(e.Email))
+               )
+            {
+                var studentTask = GetSyncPlan<ProposalStudentDto>(
+                    dtoList: projectProposal.ProposalStudents!.ToList(),
+                    extractedList: extractedStudents,
+                    keySelector: s => s.StudentCode!,
+                    isDifferent: (a, b) =>
+                        a.FullName != b.FullName ||
+                        a.Email != b.Email ||
+                        a.Phone != b.Phone
+                );
 
-            // Reupload Student details
-            await _studentService.ModifyManyAsync(studentTask, proposalId);
+                // Reupload Student details
+                await _studentService.ModifyManyAsync(studentTask, proposalId);    
+            }
+
+            
 
             var semesterResponse = await _semesterService.GetByIdAsync(projectProposal.SemesterId);
             if (semesterResponse.ResultCode != ResultCodeConst.SYS_Success0002)
